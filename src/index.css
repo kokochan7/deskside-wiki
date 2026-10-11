@@ -71,3 +71,41 @@ mark {
 .tiptap li > p {
 	@apply my-0;
 }
+/* Image resize handles (shown on hover or when the image is selected) */
+.tiptap [data-resize-container] {
+	@apply my-4;
+}
+.tiptap [data-resize-wrapper] img {
+	@apply my-0 max-w-full;
+}
+.tiptap [data-resize-handle] {
+	@apply z-10 size-3 rounded-full border-2 border-white bg-brand-500 opacity-0 shadow transition-opacity;
+}
+.tiptap [data-resize-handle='top-left'],
+.tiptap [data-resize-handle='bottom-right'] {
+	cursor: nwse-resize;
+}
+.tiptap [data-resize-handle='top-right'],
+.tiptap [data-resize-handle='bottom-left'] {
+	cursor: nesw-resize;
+}
+.tiptap [data-resize-handle='top-left'] {
+	@apply -translate-x-1/2 -translate-y-1/2;
+}
+.tiptap [data-resize-handle='top-right'] {
+	@apply translate-x-1/2 -translate-y-1/2;
+}
+.tiptap [data-resize-handle='bottom-left'] {
+	@apply -translate-x-1/2 translate-y-1/2;
+}
+.tiptap [data-resize-handle='bottom-right'] {
+	@apply translate-x-1/2 translate-y-1/2;
+}
+.tiptap [data-resize-wrapper]:hover [data-resize-handle],
+.tiptap .ProseMirror-selectednode [data-resize-handle],
+.tiptap [data-resize-state='true'] [data-resize-handle] {
+	@apply opacity-100;
+}
+.tiptap .ProseMirror-selectednode [data-resize-wrapper] img {
+	@apply ring-2 ring-brand-500;
+}

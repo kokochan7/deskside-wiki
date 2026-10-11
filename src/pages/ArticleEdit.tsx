@@ -101,7 +101,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 					onChange={(e) => set({ title: e.target.value })}
 					placeholder="KB title"
 					autoFocus={!id}
-					className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+					className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-3xl font-semibold tracking-tight shadow-xs outline-none transition placeholder:text-zinc-500 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder:text-zinc-400"
 				/>
 				<div className="flex items-center gap-2">
 					{dirty && <span className="text-xs text-zinc-400">Unsaved changes</span>}

@@ -138,7 +138,7 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 						<option value="viewer">Viewer</option>
 					</Select>
 				</Field>
-				<Field label={isNew ? 'Temporary password' : 'Reset password'} hint={isNew ? 'Share it with them privately.' : 'Leave blank to keep their current password.'}>
+				<Field label={isNew ? 'Password' : 'Reset password'} hint={isNew ? 'Share it with them privately.' : 'Leave blank to keep their current password.'}>
 					<PasswordInput autoComplete="new-password" required={isNew} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
 				</Field>
 				{!isNew && (

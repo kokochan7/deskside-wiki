@@ -228,11 +228,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
 marked.setOptions({ gfm: true, breaks: true });
 
+export const IMAGE_WIDTH = /#w=(\d{1,4})$/;
+
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 	if (node.tagName === 'A') {
 		node.setAttribute('target', '_blank');
 		node.setAttribute('rel', 'noopener noreferrer');
 	}
+	// Resized images carry their width in the link, e.g. /api/images/abc#w=480 (see RichEditor).
+	const width = node.tagName === 'IMG' && node.getAttribute('src')?.match(IMAGE_WIDTH)?.[1];
+	if (width) node.setAttribute('width', width);
 });
 
 export const renderMarkdown = (md: string) => DOMPurify.sanitize(marked.parse(md, { async: false }) as string);
