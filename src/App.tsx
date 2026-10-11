@@ -171,10 +171,10 @@ function Shell({ onLogin, onLogout }: { onLogin: () => void; onLogout: () => voi
 					) : (
 					<a href="#/account" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/60" title="Your account">
 						<span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-semibold text-white">
-							{initials(user.name)}
+							{initials(user.username)}
 						</span>
 						<span className="min-w-0">
-							<span className="block truncate text-sm font-medium">{user.name}</span>
+							<span className="block truncate text-sm font-medium">{user.username}</span>
 							<span className="block truncate text-xs capitalize text-zinc-500">{user.role}</span>
 						</span>
 					</a>

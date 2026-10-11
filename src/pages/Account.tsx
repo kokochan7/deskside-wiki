@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { useUser } from '../session';
-import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader, useFeedback } from '../components/ui';
+import { Badge, Button, Card, ErrorNote, Field, PageHeader, PasswordInput, useFeedback } from '../components/ui';
 
 export function Account() {
 	const user = useUser();
@@ -32,8 +32,7 @@ export function Account() {
 		<div className="max-w-xl">
 			<PageHeader title="Your account" />
 			<Card className="mb-6 p-5">
-				<div className="font-medium">{user.name}</div>
-				<div className="text-sm text-zinc-500">Username: {user.username}</div>
+				<div className="font-medium">{user.username}</div>
 				<div className="mt-2">
 					<Badge tone="brand">
 						<span className="capitalize">{user.role}</span>
@@ -44,13 +43,13 @@ export function Account() {
 				<h2 className="mb-4 font-semibold">Change password</h2>
 				<form onSubmit={submit} className="space-y-4">
 					<Field label="Current password">
-						<Input type="password" autoComplete="current-password" required value={f.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} />
+						<PasswordInput autoComplete="current-password" required value={f.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} />
 					</Field>
-					<Field label="New password" hint="At least 10 characters.">
-						<Input type="password" autoComplete="new-password" required minLength={10} value={f.newPassword} onChange={(e) => setF({ ...f, newPassword: e.target.value })} />
+					<Field label="New password">
+						<PasswordInput autoComplete="new-password" required value={f.newPassword} onChange={(e) => setF({ ...f, newPassword: e.target.value })} />
 					</Field>
 					<Field label="Confirm new password">
-						<Input type="password" autoComplete="new-password" required value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} />
+						<PasswordInput autoComplete="new-password" required value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} />
 					</Field>
 					<ErrorNote error={error} />
 					<Button variant="primary" loading={busy}>

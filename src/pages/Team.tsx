@@ -3,7 +3,7 @@ import { Pencil, Trash2, UserPlus } from 'lucide-react';
 import { api, type Role, type TeamMember } from '../api';
 import { initials, timeAgo } from '../format';
 import { useUser } from '../session';
-import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, useFeedback } from '../components/ui';
+import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, PasswordInput, Select, Spinner, useFeedback } from '../components/ui';
 
 const ROLE_INFO: Record<Role, string> = {
 	admin: 'Full access, including deleting and managing user accounts.',
@@ -23,10 +23,10 @@ export function Team() {
 	}, [load]);
 
 	const remove = async (u: TeamMember) => {
-		if (!(await confirm('Remove user account?', `${u.name} will lose access immediately. Articles they wrote are kept.`, 'Remove'))) return;
+		if (!(await confirm('Remove user account?', `${u.username} will lose access immediately. Articles they wrote are kept.`, 'Remove'))) return;
 		try {
 			await api.del(`/users/${u.id}`);
-			toast(`${u.name} removed`);
+			toast(`${u.username} removed`);
 			load();
 		} catch (e) {
 			toast((e as Error).message, 'error');
@@ -50,15 +50,14 @@ export function Team() {
 					{users.map((u) => (
 						<div key={u.id} className="flex items-center gap-3 px-5 py-4">
 							<span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-semibold text-white">
-								{initials(u.name)}
+								{initials(u.username)}
 							</span>
 							<div className="min-w-0 flex-1">
 								<div className="flex flex-wrap items-center gap-2 font-medium">
-									{u.name}
+									{u.username}
 									{u.id === me.id && <span className="text-xs font-normal text-zinc-400">(you)</span>}
 									{!u.active && <Badge tone="amber">Disabled</Badge>}
 								</div>
-								<div className="truncate text-sm text-zinc-500">{u.username}</div>
 							</div>
 							<span className="hidden text-xs text-zinc-400 md:inline">Last sign-in {timeAgo(u.last_login_at)}</span>
 							<Badge tone={u.role === 'admin' ? 'brand' : u.role === 'technician' ? 'green' : 'zinc'}>
@@ -84,12 +83,12 @@ export function Team() {
 function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null; onClose: () => void; onSaved: () => void }) {
 	const { toast } = useFeedback();
 	const isNew = user === 'new';
-	const [f, setF] = useState({ name: '', username: '', role: 'technician' as Role, password: '', active: true });
+	const [f, setF] = useState({ username: '', role: 'technician' as Role, password: '', active: true });
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		if (!user) return;
-		setF(user === 'new' ? { name: '', username: '', role: 'technician', password: '', active: true } : { name: user.name, username: user.username, role: user.role, password: '', active: !!user.active });
+		setF(user === 'new' ? { username: '', role: 'technician', password: '', active: true } : { username: user.username, role: user.role, password: '', active: !!user.active });
 		setError(null);
 		setBusy(false);
 	}, [user]);
@@ -101,7 +100,7 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 		try {
 			if (isNew) await api.post('/users', f);
 			else await api.put(`/users/${(user as TeamMember).id}`, { ...f, password: f.password || undefined });
-			toast(isNew ? `${f.name} added` : 'Changes saved');
+			toast(isNew ? `${f.username} added` : 'Changes saved');
 			onClose();
 			onSaved();
 		} catch (err) {
@@ -113,12 +112,10 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 	return (
 		<Modal open={!!user} onClose={onClose} title={isNew ? 'Add user account' : 'Edit user account'}>
 			<form onSubmit={submit} className="space-y-4">
-				<Field label="Name">
-					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-				</Field>
 				<Field label="Username" hint="Used to sign in. Letters, numbers, dots, dashes and underscores.">
 					<Input
 						required
+						autoFocus
 						autoCapitalize="none"
 						autoCorrect="off"
 						spellCheck={false}
@@ -134,8 +131,8 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 						<option value="viewer">Viewer</option>
 					</Select>
 				</Field>
-				<Field label={isNew ? 'Temporary password' : 'Reset password'} hint={isNew ? 'At least 10 characters. Share it with them privately.' : 'Leave blank to keep their current password.'}>
-					<Input type="text" autoComplete="new-password" required={isNew} minLength={10} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+				<Field label={isNew ? 'Temporary password' : 'Reset password'} hint={isNew ? 'Share it with them privately.' : 'Leave blank to keep their current password.'}>
+					<PasswordInput autoComplete="new-password" required={isNew} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
 				</Field>
 				{!isNew && (
 					<label className="flex items-center gap-2 text-sm">

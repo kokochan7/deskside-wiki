@@ -6,7 +6,7 @@ Runs entirely on Cloudflare: a Worker serves the API and the React app, and a D1
 
 ## Features
 
-- **Knowledge base:** a compact article list with every client in a sidebar for one-click filtering. Create, edit and delete articles with a Markdown editor (toolbar, live split preview, templates, Ctrl/⌘+S to save). Categories (from a list admins manage in Settings), tags, and any number of clients per article. Admins can select several articles and delete them at once.
+- **Knowledge base:** a compact article list with every client in a sidebar for one-click filtering. Create, edit and delete articles with a Markdown editor (toolbar, live split preview, templates, Ctrl/⌘+S to save). Categories (from a list admins manage and reorder in Settings), tags, and any number of clients per article. Technicians can select several articles to change their category or clients at once; admins can also delete them.
 - **Images:** paste screenshots straight into the editor, drag them in, or use the image button. Large images are shrunk in the browser and stored in D1, and only signed-in users can see them. Click an image in an article to zoom.
 - **Share links:** technicians can create a link to a single article (with its images) that works without an account, and turn it off again. **Copy** starts a new article with all the fields of an existing one.
 - **Public viewing:** anyone can browse read-only without signing in; signing in unlocks editing. Admins can turn this off in Settings.
