@@ -1,0 +1,48 @@
+---
+title: Connect to the VPN
+description: Install the VPN client and connect to the company network remotely.
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The VPN gives you secure access to internal systems when you're not in the office.
+
+## Install the client
+
+<Tabs syncKey="os">
+	<TabItem label="Windows" icon="seti:windows">
+		Open **[Software Center]**, search for **[VPN client]** and select **Install**.
+	</TabItem>
+	<TabItem label="macOS" icon="apple">
+		Open **[Self Service]**, find **[VPN client]** and select **Install**.
+	</TabItem>
+</Tabs>
+
+## Connect
+
+<Steps>
+
+1. Open **[VPN client]**.
+
+2. Enter the server address **[vpn.example.com]** if it isn't filled in.
+
+3. Sign in with your company account and approve the MFA prompt.
+
+4. Wait for the status to show **Connected**.
+
+</Steps>
+
+## Troubleshooting
+
+<Aside type="tip" title="Can't connect?">
+Most VPN issues are fixed by these steps, in order.
+</Aside>
+
+- Check your internet works without the VPN by opening any public site.
+- Quit and reopen the VPN client, then try again.
+- Hotel and guest networks sometimes block VPNs. Try a phone hotspot.
+- Restart your computer.
+
+Still stuck? [Contact the service desk](/support/get-help/) with a screenshot of the error.

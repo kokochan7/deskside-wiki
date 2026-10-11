@@ -1,0 +1,42 @@
+---
+title: IT Knowledge Base
+description: Internal IT documentation, how-tos and troubleshooting guides.
+template: splash
+hero:
+  tagline: Answers to everyday IT questions, from your first login to fixing the printer. Press <kbd>/</kbd> to search.
+  actions:
+    - text: New here? Start onboarding
+      link: /getting-started/onboarding/
+      icon: right-arrow
+    - text: Get IT help
+      link: /support/get-help/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Popular guides
+
+<CardGrid>
+	<LinkCard title="Reset your password" description="Self-service reset and what to do when you're locked out." href="/accounts/password-reset/" />
+	<LinkCard title="Connect to the VPN" description="Install the client and connect from home or on the road." href="/network/vpn/" />
+	<LinkCard title="Set up multi-factor authentication" description="Enroll your phone or a security key." href="/accounts/mfa/" />
+	<LinkCard title="Add a printer" description="Find and install office printers on Windows and macOS." href="/hardware/printers/" />
+</CardGrid>
+
+## Browse by topic
+
+<CardGrid>
+	<Card title="Getting started" icon="rocket">
+		Your first day, accounts you'll get, and a setup checklist.
+	</Card>
+	<Card title="Accounts & access" icon="seti:lock">
+		Passwords, MFA and requesting access to systems.
+	</Card>
+	<Card title="Network & remote access" icon="laptop">
+		VPN, office Wi-Fi and working remotely.
+	</Card>
+	<Card title="Software" icon="puzzle">
+		Approved apps and how to request new software.
+	</Card>
+</CardGrid>
