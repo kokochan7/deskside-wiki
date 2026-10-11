@@ -56,7 +56,7 @@ export function SharedArticle({ token }: { token: string }) {
 							{article.body.trim() ? (
 								<Markdown source={article.body.replaceAll('/api/images/', `/api/share/${token}/images/`)} />
 							) : (
-								<p className="text-sm text-zinc-500">This article is empty.</p>
+								<p className="text-sm text-zinc-500">This KB is empty.</p>
 							)}
 						</Card>
 					</>

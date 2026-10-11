@@ -83,7 +83,7 @@ export function CategorySettings() {
 		if (await run(() => api.put(`/categories/${encodeURIComponent(editing.from)}`, { name: editing.to }), 'Category renamed')) setEditing(null);
 	};
 	const remove = async (c: Category) => {
-		const msg = c.count ? `Its ${c.count} article${c.count === 1 ? '' : 's'} will move to General.` : 'No articles use it.';
+		const msg = c.count ? `Its ${c.count} KB${c.count === 1 ? '' : 's'} will move to General.` : 'No KBs use it.';
 		if (await confirm(`Delete “${c.name}”?`, msg, 'Delete')) run(() => api.del(`/categories/${encodeURIComponent(c.name)}`), 'Category deleted');
 	};
 
@@ -92,7 +92,7 @@ export function CategorySettings() {
 			<div>
 				<h2 className="font-semibold">Categories</h2>
 				<p className="mt-0.5 text-sm text-zinc-500">
-					Technicians pick from this list when writing articles. Drag the handles to change the order. Renaming a category updates its articles.
+					Technicians pick from this list when writing KBs. Drag the handles to change the order. Renaming a category updates its KBs.
 				</p>
 			</div>
 			{!list ? (
@@ -135,7 +135,7 @@ export function CategorySettings() {
 								</button>
 								<span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
 								<span className="text-xs tabular-nums text-zinc-500">
-									{c.count} article{c.count === 1 ? '' : 's'}
+									{c.count} KB{c.count === 1 ? '' : 's'}
 								</span>
 								{c.name === 'General' ? (
 									<span className="w-[4.5rem] text-right text-xs text-zinc-400">Default</span>

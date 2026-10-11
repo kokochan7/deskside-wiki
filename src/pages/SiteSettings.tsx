@@ -100,8 +100,8 @@ export function SiteSettings() {
 						<span>
 							<span className="font-medium">Let anyone view without signing in</span>
 							<span className="mt-0.5 block text-zinc-500">
-								Visitors can read every article and client page, read-only. Anyone with the site address can see them, so turn this off if
-								articles contain anything sensitive. Signing in is still needed to make changes. Share links for single articles work
+								Visitors can read every KB and client page, read-only. Anyone with the site address can see them, so turn this off if
+								KBs contain anything sensitive. Signing in is still needed to make changes. Share links for single KBs work
 								either way.
 							</span>
 						</span>

@@ -81,7 +81,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 						autoFocus
 						value={q}
 						onChange={(e) => setQ(e.target.value)}
-						placeholder="Search articles and clients…"
+						placeholder="Search KBs and clients…"
 						className="h-14 flex-1 bg-transparent text-base outline-none placeholder:text-zinc-400"
 					/>
 					<kbd className="rounded border border-zinc-200 px-1.5 text-[11px] text-zinc-500 dark:border-zinc-700">esc</kbd>

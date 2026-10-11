@@ -4,7 +4,7 @@ import { api, imageUrl, type Client } from '../api';
 import { ClientLogo, LogoPicker } from '../branding';
 import { navigate } from '../router';
 import { canEdit, useUser } from '../session';
-import { Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Spinner, Textarea, useFeedback } from '../components/ui';
+import { Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Spinner, useFeedback } from '../components/ui';
 
 export function ClientList() {
 	const user = useUser();
@@ -53,7 +53,7 @@ export function ClientList() {
 							<span className="hidden w-48 truncate text-xs text-zinc-500 md:inline">{c.website}</span>
 							<span className="hidden w-32 truncate text-xs text-zinc-500 sm:inline">{c.phone}</span>
 							<span className="w-20 shrink-0 text-right text-xs tabular-nums text-zinc-500">
-								{c.article_count} {c.article_count === 1 ? 'article' : 'articles'}
+								{c.article_count} {c.article_count === 1 ? 'KB' : 'KBs'}
 							</span>
 						</a>
 					))}
@@ -64,7 +64,7 @@ export function ClientList() {
 	);
 }
 
-const blank = { name: '', website: '', phone: '', email: '', address: '', notes: '', logo_image_id: null as string | null };
+const blank = { name: '', website: '', phone: '', email: '', address: '', logo_image_id: null as string | null };
 
 export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; onClose: () => void; onSaved: (id: number) => void; client?: Client }) {
 	const { toast } = useFeedback();
@@ -75,7 +75,7 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 		if (open) {
 			setF(
 				client
-					? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, notes: client.notes, logo_image_id: client.logo_image_id }
+					? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, logo_image_id: client.logo_image_id }
 					: blank,
 			);
 			setError(null);
@@ -121,9 +121,6 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 				</div>
 				<Field label="Address">
 					<Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
-				</Field>
-				<Field label="Notes" hint="Markdown supported. Don't store passwords here.">
-					<Textarea rows={5} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Contract hours, escalation path, quirks…" />
 				</Field>
 				<ErrorNote error={error} />
 				<div className="flex justify-end gap-2">

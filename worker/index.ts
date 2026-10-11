@@ -279,7 +279,7 @@ function withClients<T extends { clients: string }>(row: T): Omit<T, 'clients'> 
 
 app.get('/overview', async (c) => {
 	const db = c.env.DB;
-	const [counts, recent, categories, clients, weekly] = await db.batch([
+	const [counts, recent] = await db.batch([
 		db.prepare(
 			`SELECT (SELECT COUNT(*) FROM articles) AS articles, (SELECT COUNT(*) FROM clients) AS clients,
 			        (SELECT COUNT(*) FROM users WHERE active = 1) AS users,
@@ -289,25 +289,12 @@ app.get('/overview', async (c) => {
 		db.prepare(
 			`SELECT a.id, a.title, a.category, a.updated_at, ${CLIENTS_OF('a')} AS clients, u.username AS updated_by_name
 			 FROM articles a LEFT JOIN users u ON u.id = a.updated_by
-			 ORDER BY a.updated_at DESC LIMIT 8`,
-		),
-		db.prepare(`SELECT category, COUNT(*) AS count FROM articles GROUP BY category ORDER BY count DESC, category`),
-		db.prepare(
-			`SELECT c.id, c.name, COUNT(ac.article_id) AS count FROM clients c JOIN article_clients ac ON ac.client_id = c.id
-			 GROUP BY c.id ORDER BY count DESC, c.name COLLATE NOCASE LIMIT 8`,
-		),
-		// Articles created per week for the last 12 weeks (weeks start on Monday).
-		db.prepare(
-			`SELECT date(created_at, 'weekday 0', '-6 days') AS week, COUNT(*) AS count FROM articles
-			 WHERE created_at >= date('now', 'weekday 0', '-83 days') GROUP BY week ORDER BY week`,
+			 ORDER BY a.updated_at DESC LIMIT 10`,
 		),
 	]);
 	return c.json({
 		counts: counts.results[0],
 		recent: (recent.results as { clients: string }[]).map(withClients),
-		categories: categories.results,
-		clients: clients.results,
-		weekly: weekly.results,
 	});
 });
 
@@ -368,7 +355,7 @@ app.get('/articles/:id', async (c) => {
 	)
 		.bind(idParam(c))
 		.first<Record<string, unknown> & { clients: string }>();
-	if (!row) fail(404, 'Article not found.');
+	if (!row) fail(404, 'KB not found.');
 	const { client_id, ...article } = withClients(row!);
 	if (c.get('user').role === 'viewer') delete article.share_token;
 	return c.json(article);
@@ -390,7 +377,7 @@ async function articleFields(c: Context<Env>) {
 	if (!category) fail(400, 'Choose a category from the list. Admins can add categories in Settings.');
 	return {
 		title: str(b.title, 'Title', { required: true }),
-		body: str(b.body, 'Article body', { max: 200_000 }),
+		body: str(b.body, 'KB body', { max: 200_000 }),
 		category: category!.name,
 		tags: str(b.tags, 'Tags', { max: 300 })
 			.split(',')
@@ -433,7 +420,7 @@ app.put('/articles/:id', canEdit, async (c) => {
 		),
 		...setArticleClients(db, id, f.clientIds),
 	]);
-	if (!res.meta.changes) fail(404, 'Article not found.');
+	if (!res.meta.changes) fail(404, 'KB not found.');
 	return c.json({ id });
 });
 
@@ -447,7 +434,7 @@ const deleteArticles = (db: D1Database, ids: number[]) => {
 
 app.delete('/articles/:id', adminOnly, async (c) => {
 	const [res] = await deleteArticles(c.env.DB, [idParam(c)]);
-	if (!res.results.length) fail(404, 'Article not found.');
+	if (!res.results.length) fail(404, 'KB not found.');
 	return c.json({ ok: true });
 });
 
@@ -456,8 +443,8 @@ app.post('/articles/bulk-update', canEdit, async (c) => {
 	const b = await body(c);
 	const db = c.env.DB;
 	const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(Number))].filter((id) => Number.isInteger(id) && id > 0);
-	if (!ids.length) fail(400, 'Select at least one article.');
-	if (ids.length > 200) fail(400, 'Change at most 200 articles at a time.');
+	if (!ids.length) fail(400, 'Select at least one KB.');
+	if (ids.length > 200) fail(400, 'Change at most 200 KBs at a time.');
 	// json_each keeps every query to one bound parameter however many articles are selected (D1 allows 100).
 	const idList = JSON.stringify(ids);
 	const stmts: D1PreparedStatement[] = [];
@@ -505,8 +492,8 @@ app.post('/articles/bulk-update', canEdit, async (c) => {
 app.post('/articles/delete', adminOnly, async (c) => {
 	const b = await body(c);
 	const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(Number))].filter((id) => Number.isInteger(id) && id > 0);
-	if (!ids.length) fail(400, 'Select at least one article.');
-	if (ids.length > 200) fail(400, 'Delete at most 200 articles at a time.');
+	if (!ids.length) fail(400, 'Select at least one KB.');
+	if (ids.length > 200) fail(400, 'Delete at most 200 KBs at a time.');
 	const [res] = await deleteArticles(c.env.DB, ids);
 	return c.json({ deleted: res.results.length });
 });
@@ -518,13 +505,13 @@ app.post('/articles/:id/share', canEdit, async (c) => {
 	const row = await c.env.DB.prepare(`UPDATE articles SET share_token = COALESCE(share_token, ?) WHERE id = ? RETURNING share_token`)
 		.bind(token, id)
 		.first<{ share_token: string }>();
-	if (!row) fail(404, 'Article not found.');
+	if (!row) fail(404, 'KB not found.');
 	return c.json({ share_token: row!.share_token });
 });
 
 app.delete('/articles/:id/share', canEdit, async (c) => {
 	const res = await c.env.DB.prepare(`UPDATE articles SET share_token = NULL WHERE id = ?`).bind(idParam(c)).run();
-	if (!res.meta.changes) fail(404, 'Article not found.');
+	if (!res.meta.changes) fail(404, 'KB not found.');
 	return c.json({ ok: true });
 });
 
@@ -581,7 +568,6 @@ async function clientFields(c: Context<Env>) {
 		phone: str(b.phone, 'Phone', { max: 60 }),
 		email: str(b.email, 'Email'),
 		address: str(b.address, 'Address', { max: 500 }),
-		notes: str(b.notes, 'Notes', { max: 20_000 }),
 		logo_image_id: await imageIdOrNull(c.env.DB, b.logo_image_id),
 	};
 }
@@ -589,9 +575,9 @@ async function clientFields(c: Context<Env>) {
 app.post('/clients', canEdit, async (c) => {
 	const f = await clientFields(c);
 	const res = await c.env.DB.prepare(
-		`INSERT INTO clients (name, website, phone, email, address, notes, logo_image_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO clients (name, website, phone, email, address, logo_image_id) VALUES (?, ?, ?, ?, ?, ?)`,
 	)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes, f.logo_image_id)
+		.bind(f.name, f.website, f.phone, f.email, f.address, f.logo_image_id)
 		.run();
 	return c.json({ id: res.meta.last_row_id }, 201);
 });
@@ -600,12 +586,29 @@ app.put('/clients/:id', canEdit, async (c) => {
 	const id = idParam(c);
 	const f = await clientFields(c);
 	const res = await c.env.DB.prepare(
-		`UPDATE clients SET name = ?, website = ?, phone = ?, email = ?, address = ?, notes = ?, logo_image_id = ?, updated_at = datetime('now') WHERE id = ?`,
+		`UPDATE clients SET name = ?, website = ?, phone = ?, email = ?, address = ?, logo_image_id = ?, updated_at = datetime('now') WHERE id = ?`,
 	)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes, f.logo_image_id, id)
+		.bind(f.name, f.website, f.phone, f.email, f.address, f.logo_image_id, id)
 		.run();
 	if (!res.meta.changes) fail(404, 'Client not found.');
 	return c.json({ id });
+});
+
+// The Information and New Hire Procedure sections of a client page. Everyone can read them; only admins edit.
+const CLIENT_SECTIONS: Record<string, { column: string; label: string }> = {
+	info: { column: 'notes', label: 'Information' },
+	'new-hire': { column: 'new_hire', label: 'New hire procedure' },
+};
+
+app.put('/clients/:id/sections/:section', adminOnly, async (c) => {
+	const id = idParam(c);
+	const key = c.req.param('section') ?? '';
+	if (!Object.hasOwn(CLIENT_SECTIONS, key)) fail(404, 'Not found.');
+	const section = CLIENT_SECTIONS[key]!;
+	const text = str((await body(c)).text, section.label, { max: 50_000 });
+	const res = await c.env.DB.prepare(`UPDATE clients SET ${section.column} = ?, updated_at = datetime('now') WHERE id = ?`).bind(text, id).run();
+	if (!res.meta.changes) fail(404, 'Client not found.');
+	return c.json({ ok: true });
 });
 
 app.delete('/clients/:id', adminOnly, async (c) => {
