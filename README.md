@@ -7,6 +7,7 @@ Runs entirely on Cloudflare: a Worker serves the API and the React app, and a D1
 ## Features
 
 - **Knowledge base:** create, edit and delete articles with a Markdown editor (toolbar, live split preview, templates, Ctrl/⌘+S to save). Categories, tags, and an optional client per article.
+- **Images:** paste screenshots straight into the editor, drag them in, or use the image button. Large images are shrunk in the browser and stored in D1, and only signed-in users can see them. Click an image in an article to zoom.
 - **Search:** full-text search across titles, bodies and tags, plus a ⌘K / Ctrl+K command palette.
 - **Clients:** company details, notes, contacts, and the articles that belong to each client.
 - **Team:** admins add technicians, set roles, reset passwords and disable accounts.

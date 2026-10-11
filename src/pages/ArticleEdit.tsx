@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, Italic, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table } from 'lucide-react';
+import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, ImagePlus, Italic, Loader2, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table } from 'lucide-react';
 import { api, type Article, type Client } from '../api';
 import { navigate, query } from '../router';
+import { altText, uploadImage } from '../images';
 import { Button, Card, ErrorNote, Field, Input, Markdown, Select, Spinner, cx, useFeedback } from '../components/ui';
 
 const TEMPLATES: Record<string, string> = {
@@ -24,6 +25,10 @@ export function ArticleEdit({ id }: { id?: number }) {
 	const [error, setError] = useState<string | null>(null);
 	const textarea = useRef<HTMLTextAreaElement>(null);
 	const saveRef = useRef<() => void>(() => {});
+	const fileInput = useRef<HTMLInputElement>(null);
+	const uploadSeq = useRef(0);
+	const [uploading, setUploading] = useState(0);
+	const [dragging, setDragging] = useState(false);
 
 	useEffect(() => {
 		api.get<string[]>('/categories').then(setCategories).catch(() => {});
@@ -64,6 +69,10 @@ export function ArticleEdit({ id }: { id?: number }) {
 
 	const save = async () => {
 		if (busy) return;
+		if (uploading) {
+			setError('Wait for the images to finish uploading.');
+			return;
+		}
 		if (!form.title.trim()) {
 			setError('Give the article a title.');
 			return;
@@ -105,6 +114,48 @@ export function ArticleEdit({ id }: { id?: number }) {
 		requestAnimationFrame(() => ta.focus());
 	};
 
+	// Insert a placeholder at the cursor for each image, then swap in the real link once it's uploaded.
+	// Uses functional updates because the user can keep typing while uploads run.
+	const insertImages = async (files: File[]) => {
+		const images = files.filter((f) => f.type.startsWith('image/'));
+		if (!images.length) return;
+		const ta = textarea.current;
+		const pos = ta ? ta.selectionEnd : form.body.length;
+		const tokens = images.map(() => `![Uploading image ${++uploadSeq.current}…]()`);
+		const block = tokens.map((t) => `\n${t}\n`).join('');
+		setForm((f) => f && { ...f, body: f.body.slice(0, pos) + block + f.body.slice(pos) });
+		const swap = (token: string, text: string) => setForm((f) => f && { ...f, body: f.body.replace(token, text) });
+		setUploading((n) => n + images.length);
+		await Promise.all(
+			images.map(async (file, i) => {
+				try {
+					swap(tokens[i], `![${altText(file)}](${await uploadImage(file)})`);
+				} catch (e) {
+					swap(tokens[i], '');
+					toast((e as Error).message, 'error');
+				} finally {
+					setUploading((n) => n - 1);
+				}
+			}),
+		);
+	};
+
+	const onPaste = (e: React.ClipboardEvent) => {
+		const files = Array.from(e.clipboardData.files);
+		// Plain text wins (e.g. cells copied from Excel also carry a picture of them).
+		if (!files.some((f) => f.type.startsWith('image/')) || e.clipboardData.getData('text/plain').trim()) return;
+		e.preventDefault();
+		insertImages(files);
+	};
+
+	const onDrop = (e: React.DragEvent) => {
+		setDragging(false);
+		const files = Array.from(e.dataTransfer.files);
+		if (!files.length) return;
+		e.preventDefault();
+		insertImages(files);
+	};
+
 	const tools = [
 		{ icon: Heading2, label: 'Heading', run: () => linePrefix('## ') },
 		{ icon: Bold, label: 'Bold', run: () => wrap('**', '**', 'bold text') },
@@ -116,6 +167,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 		{ icon: ListChecks, label: 'Checklist', run: () => linePrefix('- [ ] ') },
 		{ icon: Quote, label: 'Quote', run: () => linePrefix('> ') },
 		{ icon: Table, label: 'Table', run: () => wrap('\n| Column | Column |\n| --- | --- |\n| ', ' | |\n', 'Value') },
+		{ icon: ImagePlus, label: 'Insert image', run: () => fileInput.current?.click() },
 	];
 
 	return (
@@ -224,9 +276,21 @@ export function ArticleEdit({ id }: { id?: number }) {
 							ref={textarea}
 							value={form.body}
 							onChange={(e) => set({ body: e.target.value })}
+							onPaste={onPaste}
+							onDrop={onDrop}
+							onDragOver={(e) => {
+								if (e.dataTransfer.types.includes('Files')) {
+									e.preventDefault();
+									setDragging(true);
+								}
+							}}
+							onDragLeave={() => setDragging(false)}
 							placeholder={'Write in Markdown…\n\n## Steps\n1. Open the admin portal\n2. ...'}
 							spellCheck
-							className="min-h-[60vh] w-full resize-y bg-transparent p-5 font-mono text-sm leading-relaxed outline-none placeholder:text-zinc-400"
+							className={cx(
+								'min-h-[60vh] w-full resize-y bg-transparent p-5 font-mono text-sm leading-relaxed outline-none placeholder:text-zinc-400',
+								dragging && 'bg-brand-50/60 ring-2 ring-inset ring-brand-400 dark:bg-brand-500/10',
+							)}
 						/>
 					)}
 					{view !== 'write' && (
@@ -236,7 +300,25 @@ export function ArticleEdit({ id }: { id?: number }) {
 					)}
 				</div>
 			</Card>
-			<p className="mt-2 text-xs text-zinc-400">Markdown supported. Press Ctrl/⌘ + S to save. Don't store passwords in articles.</p>
+			<input
+				ref={fileInput}
+				type="file"
+				accept="image/png,image/jpeg,image/webp,image/gif"
+				multiple
+				hidden
+				onChange={(e) => {
+					insertImages(Array.from(e.target.files ?? []));
+					e.target.value = '';
+				}}
+			/>
+			<p className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+				{uploading > 0 && (
+					<span className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-300">
+						<Loader2 className="size-3 animate-spin" /> Uploading {uploading} image{uploading === 1 ? '' : 's'}…
+					</span>
+				)}
+				Markdown supported. Paste, drag in or upload images. Press Ctrl/⌘ + S to save. Don't store passwords in articles.
+			</p>
 		</>
 	);
 }

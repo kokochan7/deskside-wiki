@@ -222,13 +222,40 @@ export const safeSnippet = (html: string) => DOMPurify.sanitize(html, { ALLOWED_
 
 export function Markdown({ source, className }: { source: string; className?: string }) {
 	const html = useMemo(() => renderMarkdown(source), [source]);
+	const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
+	useEffect(() => {
+		if (!zoomed) return;
+		const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setZoomed(null);
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, [zoomed]);
 	return (
-		<div
-			className={cx(
-				'prose prose-zinc max-w-none dark:prose-invert prose-headings:tracking-tight prose-a:text-brand-600 dark:prose-a:text-brand-300 prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-zinc-800 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/40 prose-img:rounded-lg [&_pre_code]:bg-transparent! [&_pre_code]:p-0! [&_pre_code]:text-zinc-100! [&_blockquote_p]:before:content-none! [&_blockquote_p]:after:content-none! prose-blockquote:not-italic prose-blockquote:font-normal',
-				className,
+		<>
+			<div
+				className={cx(
+					'prose prose-zinc max-w-none dark:prose-invert prose-headings:tracking-tight prose-a:text-brand-600 dark:prose-a:text-brand-300 prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-zinc-800 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/40 prose-img:rounded-lg prose-img:border prose-img:border-zinc-200 dark:prose-img:border-zinc-800 prose-img:cursor-zoom-in prose-img:shadow-sm [&_pre_code]:bg-transparent! [&_pre_code]:p-0! [&_pre_code]:text-zinc-100! [&_blockquote_p]:before:content-none! [&_blockquote_p]:after:content-none! prose-blockquote:not-italic prose-blockquote:font-normal',
+					className,
+				)}
+				onClick={(e) => {
+					const t = e.target as HTMLElement;
+					if (t instanceof HTMLImageElement && !t.closest('a')) setZoomed({ src: t.src, alt: t.alt });
+				}}
+				dangerouslySetInnerHTML={{ __html: html }}
+			/>
+			{zoomed && (
+				<div className="fixed inset-0 z-[70] flex cursor-zoom-out items-center justify-center bg-zinc-950/85 p-4 backdrop-blur-sm" onClick={() => setZoomed(null)}>
+					<img src={zoomed.src} alt={zoomed.alt} className="max-h-full max-w-full rounded-lg shadow-2xl" />
+					<a
+						href={zoomed.src}
+						target="_blank"
+						rel="noreferrer"
+						onClick={(e) => e.stopPropagation()}
+						className="absolute right-4 top-4 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+					>
+						Open original
+					</a>
+				</div>
 			)}
-			dangerouslySetInnerHTML={{ __html: html }}
-		/>
+		</>
 	);
 }
