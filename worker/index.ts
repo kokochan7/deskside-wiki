@@ -223,7 +223,7 @@ const SHARE_TOKEN = /^[0-9a-f]{32}$/;
 async function sharedArticle(db: D1Database, token: string) {
 	if (!SHARE_TOKEN.test(token)) fail(404, 'This link is invalid or has been turned off.');
 	const row = await db.prepare(
-		`SELECT a.id, a.title, a.body, a.category, a.tags, a.updated_at, ${CLIENTS_OF('a')} AS clients
+		`SELECT a.id, a.title, a.body, a.category, a.updated_at, ${CLIENTS_OF('a')} AS clients
 		 FROM articles a WHERE a.share_token = ?`,
 	)
 		.bind(token)
@@ -335,7 +335,7 @@ app.get('/articles', async (c) => {
 		where.push('EXISTS (SELECT 1 FROM article_clients ac WHERE ac.article_id = a.id AND ac.client_id = ?)');
 		args.push(Number(client));
 	}
-	const sql = `SELECT a.id, a.title, a.category, a.tags, a.updated_at, ${snippet} AS snippet,
+	const sql = `SELECT a.id, a.title, a.category, a.updated_at, ${snippet} AS snippet,
 		${CLIENTS_OF('a')} AS clients, u.username AS updated_by_name
 		FROM ${from} LEFT JOIN users u ON u.id = a.updated_by
 		${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${order} LIMIT 200`;
@@ -379,11 +379,6 @@ async function articleFields(c: Context<Env>) {
 		title: str(b.title, 'Title', { required: true }),
 		body: str(b.body, 'KB body', { max: 200_000 }),
 		category: category!.name,
-		tags: str(b.tags, 'Tags', { max: 300 })
-			.split(',')
-			.map((t) => t.trim())
-			.filter(Boolean)
-			.join(', '),
 		clientIds,
 	};
 }
@@ -397,8 +392,8 @@ app.post('/articles', canEdit, async (c) => {
 	const f = await articleFields(c);
 	const uid = c.get('user').id;
 	const db = c.env.DB;
-	const res = await db.prepare(`INSERT INTO articles (title, body, category, tags, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)`)
-		.bind(f.title, f.body, f.category, f.tags, uid, uid)
+	const res = await db.prepare(`INSERT INTO articles (title, body, category, created_by, updated_by) VALUES (?, ?, ?, ?, ?)`)
+		.bind(f.title, f.body, f.category, uid, uid)
 		.run();
 	const id = res.meta.last_row_id;
 	if (f.clientIds.length) await db.batch(setArticleClients(db, id, f.clientIds));
@@ -410,11 +405,10 @@ app.put('/articles/:id', canEdit, async (c) => {
 	const f = await articleFields(c);
 	const db = c.env.DB;
 	const [res] = await db.batch([
-		db.prepare(`UPDATE articles SET title = ?, body = ?, category = ?, tags = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`).bind(
+		db.prepare(`UPDATE articles SET title = ?, body = ?, category = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`).bind(
 			f.title,
 			f.body,
 			f.category,
-			f.tags,
 			c.get('user').id,
 			id,
 		),

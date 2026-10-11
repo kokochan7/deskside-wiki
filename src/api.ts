@@ -5,7 +5,6 @@ export type ArticleSummary = {
 	id: number;
 	title: string;
 	category: string;
-	tags: string;
 	clients: ClientRef[];
 	updated_at: string;
 	updated_by_name: string | null;

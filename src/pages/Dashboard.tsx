@@ -19,12 +19,10 @@ export function Dashboard() {
 		{ label: 'User accounts', value: data.counts.users, icon: <Users className="size-5" />, href: user.role === 'admin' ? '#/team' : undefined },
 		{ label: 'Updated in last 30 days', value: data.counts.updated_30d, icon: <History className="size-5" />, href: '#/articles' },
 	];
-	const hour = new Date().getHours();
-	const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
 	return (
 		<>
-			<PageHeader title={user.guest ? greeting : `${greeting}, ${user.username}`} />
+			<PageHeader title="Dashboard" />
 			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 				{stats.map((s) => {
 					const inner = (

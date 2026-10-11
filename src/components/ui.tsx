@@ -238,6 +238,10 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 export const renderMarkdown = (md: string) => DOMPurify.sanitize(marked.parse(md, { async: false }) as string);
 export const safeSnippet = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['mark'] });
 
+// Typography for rendered KB content, shared by the reader and the editor so both look the same.
+export const proseClass =
+	'prose prose-zinc max-w-none dark:prose-invert prose-headings:tracking-tight prose-a:text-brand-600 dark:prose-a:text-brand-300 prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-zinc-800 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/40 prose-img:rounded-lg prose-img:border prose-img:border-zinc-200 dark:prose-img:border-zinc-800 prose-img:cursor-zoom-in prose-img:shadow-sm [&_pre_code]:bg-transparent! [&_pre_code]:p-0! [&_pre_code]:text-zinc-100! [&_blockquote_p]:before:content-none! [&_blockquote_p]:after:content-none! prose-blockquote:not-italic prose-blockquote:font-normal';
+
 export function Markdown({ source, className }: { source: string; className?: string }) {
 	const html = useMemo(() => renderMarkdown(source), [source]);
 	const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
@@ -251,7 +255,7 @@ export function Markdown({ source, className }: { source: string; className?: st
 		<>
 			<div
 				className={cx(
-					'prose prose-zinc max-w-none dark:prose-invert prose-headings:tracking-tight prose-a:text-brand-600 dark:prose-a:text-brand-300 prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-zinc-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-zinc-800 prose-pre:bg-zinc-900 dark:prose-pre:bg-black/40 prose-img:rounded-lg prose-img:border prose-img:border-zinc-200 dark:prose-img:border-zinc-800 prose-img:cursor-zoom-in prose-img:shadow-sm [&_pre_code]:bg-transparent! [&_pre_code]:p-0! [&_pre_code]:text-zinc-100! [&_blockquote_p]:before:content-none! [&_blockquote_p]:after:content-none! prose-blockquote:not-italic prose-blockquote:font-normal',
+					proseClass,
 					className,
 				)}
 				onClick={(e) => {

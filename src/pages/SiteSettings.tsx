@@ -41,8 +41,16 @@ export function SiteSettings() {
 
 	return (
 		<div className="max-w-2xl">
-			<PageHeader title="Settings" />
-			<form onSubmit={submit} className="space-y-6">
+			<PageHeader
+				title="Settings"
+				actions={
+					<Button variant="primary" form="site-settings" loading={busy}>
+						Save settings
+					</Button>
+				}
+			/>
+			<form id="site-settings" onSubmit={submit} className="space-y-6">
+				<ErrorNote error={error} />
 				<Card className="space-y-5 p-5">
 					<h2 className="font-semibold">Branding</h2>
 					<Field label="Site name" hint="Shown in the sidebar, the browser tab and on the sign-in page.">
@@ -107,11 +115,6 @@ export function SiteSettings() {
 						</span>
 					</label>
 				</Card>
-
-				<ErrorNote error={error} />
-				<Button variant="primary" loading={busy}>
-					Save settings
-				</Button>
 			</form>
 			<div className="mt-10">
 				<CategorySettings />

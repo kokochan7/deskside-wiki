@@ -5,7 +5,7 @@ import { BrandMark, useBranding } from '../branding';
 import { fullDate } from '../format';
 import { Badge, Card, Markdown, Spinner } from '../components/ui';
 
-type Shared = { title: string; body: string; category: string; tags: string; updated_at: string; clients: { id: number; name: string }[] };
+type Shared = { title: string; body: string; category: string; updated_at: string; clients: { id: number; name: string }[] };
 
 // Read-only page for an article opened from a share link. Works without an account.
 export function SharedArticle({ token }: { token: string }) {
