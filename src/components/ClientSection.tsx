@@ -94,16 +94,13 @@ export function ClientSection({
 						</Suspense>
 					</div>
 					<ErrorNote error={error} />
-					<div className="mt-3 flex flex-wrap items-center gap-2">
-						<span className="hidden text-xs text-zinc-400 sm:inline">Paste or drag in screenshots. Don't store passwords here.</span>
-						<div className="ml-auto flex gap-2">
-							<Button size="sm" type="button" onClick={() => setDraft(null)}>
-								Cancel
-							</Button>
-							<Button size="sm" variant="primary" loading={busy} onClick={save}>
-								Save
-							</Button>
-						</div>
+					<div className="mt-3 flex justify-end gap-2">
+						<Button size="sm" type="button" onClick={() => setDraft(null)}>
+							Cancel
+						</Button>
+						<Button size="sm" variant="primary" loading={busy} onClick={save}>
+							Save
+						</Button>
 					</div>
 				</>
 			)}
