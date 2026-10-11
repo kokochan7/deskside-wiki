@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Building2, FilePlus2, Users } from 'lucide-react';
+import { BookOpen, Building2, Users } from 'lucide-react';
 import { api, type Overview } from '../api';
 import { timeAgo } from '../format';
-import { canEdit, useUser } from '../session';
-import { Badge, Button, Card, Empty, PageHeader, Spinner } from '../components/ui';
-import { navigate } from '../router';
+import { useUser } from '../session';
+import { Badge, Card, Empty, PageHeader, Spinner } from '../components/ui';
 
 export function Dashboard() {
 	const user = useUser();
@@ -17,23 +16,14 @@ export function Dashboard() {
 	const stats = [
 		{ label: 'Articles', value: data.counts.articles, icon: <BookOpen className="size-5" />, href: '#/articles' },
 		{ label: 'Clients', value: data.counts.clients, icon: <Building2 className="size-5" />, href: '#/clients' },
-		{ label: 'Team members', value: data.counts.users, icon: <Users className="size-5" />, href: user.role === 'admin' ? '#/team' : undefined },
+		{ label: 'User accounts', value: data.counts.users, icon: <Users className="size-5" />, href: user.role === 'admin' ? '#/team' : undefined },
 	];
 	const hour = new Date().getHours();
 	const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
 	return (
 		<>
-			<PageHeader
-				title={`${greeting}, ${user.name.split(' ')[0]}`}
-				actions={
-					canEdit(user) && (
-						<Button variant="primary" onClick={() => navigate('/articles/new')}>
-							<FilePlus2 className="size-4" /> New article
-						</Button>
-					)
-				}
-			/>
+			<PageHeader title={user.guest ? greeting : `${greeting}, ${user.name.split(' ')[0]}`} />
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 				{stats.map((s) => {
 					const inner = (

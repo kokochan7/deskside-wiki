@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Building2, Copy, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, Copy, CopyPlus, Link2, Pencil, Share2, Trash2 } from 'lucide-react';
 import { api, type Article } from '../api';
 import { fullDate, timeAgo } from '../format';
 import { navigate } from '../router';
 import { canEdit, useUser } from '../session';
-import { Badge, Button, Card, Markdown, Spinner, useFeedback } from '../components/ui';
+import { Badge, Button, Card, Input, Markdown, Modal, Spinner, useFeedback } from '../components/ui';
 
 export function ArticleView({ id }: { id: number }) {
 	const user = useUser();
 	const { confirm, toast } = useFeedback();
 	const [article, setArticle] = useState<Article | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [sharing, setSharing] = useState(false);
 
 	useEffect(() => {
 		api.get<Article>(`/articles/${id}`).then(setArticle).catch((e) => setError(e.message));
@@ -64,19 +65,27 @@ export function ArticleView({ id }: { id: number }) {
 							navigator.clipboard.writeText(location.href);
 							toast('Link copied');
 						}}
-						title="Copy link"
+						title="Copy link (for people who can open this site)"
 					>
 						<Copy className="size-4" />
 					</Button>
 					{canEdit(user) && (
 						<>
+							<Button size="sm" onClick={() => setSharing(true)} title="Share with people who don't have an account">
+								<Share2 className="size-4" /> Share
+							</Button>
+							<Button size="sm" onClick={() => navigate(`/articles/new?copy=${id}`)} title="Start a new article with this one's content">
+								<CopyPlus className="size-4" /> Copy
+							</Button>
 							<Button size="sm" onClick={() => navigate(`/articles/${id}/edit`)}>
 								<Pencil className="size-4" /> Edit
 							</Button>
-							<Button size="sm" variant="ghost" onClick={remove} title="Delete" className="hover:text-red-600">
-								<Trash2 className="size-4" />
-							</Button>
 						</>
+					)}
+					{user.role === 'admin' && (
+						<Button size="sm" variant="ghost" onClick={remove} title="Delete" className="hover:text-red-600">
+							<Trash2 className="size-4" />
+						</Button>
 					)}
 				</div>
 			</div>
@@ -97,6 +106,82 @@ export function ArticleView({ id }: { id: number }) {
 					))}
 				</div>
 			)}
+			<ShareDialog
+				open={sharing}
+				onClose={() => setSharing(false)}
+				articleId={id}
+				token={article.share_token ?? null}
+				onChange={(share_token) => setArticle({ ...article, share_token })}
+			/>
 		</div>
+	);
+}
+
+const shareUrl = (token: string) => `${location.origin}/#/share/${token}`;
+
+function ShareDialog({ open, onClose, articleId, token, onChange }: { open: boolean; onClose: () => void; articleId: number; token: string | null; onChange: (t: string | null) => void }) {
+	const { toast } = useFeedback();
+	const [busy, setBusy] = useState(false);
+	const run = async (fn: () => Promise<void>) => {
+		setBusy(true);
+		try {
+			await fn();
+		} catch (e) {
+			toast((e as Error).message, 'error');
+		}
+		setBusy(false);
+	};
+	const create = () =>
+		run(async () => {
+			const r = await api.post<{ share_token: string }>(`/articles/${articleId}/share`);
+			onChange(r.share_token);
+			await navigator.clipboard.writeText(shareUrl(r.share_token)).catch(() => {});
+			toast('Share link created and copied');
+		});
+	const turnOff = () =>
+		run(async () => {
+			await api.del(`/articles/${articleId}/share`);
+			onChange(null);
+			toast('Share link turned off');
+		});
+
+	return (
+		<Modal open={open} onClose={onClose} title="Share this article">
+			{token ? (
+				<div className="space-y-4">
+					<p className="text-sm text-zinc-500">Anyone with this link can read this article and its images, without an account. They can't see anything else.</p>
+					<div className="flex gap-2">
+						<Input readOnly value={shareUrl(token)} onFocus={(e) => e.target.select()} aria-label="Share link" />
+						<Button
+							variant="primary"
+							onClick={() => {
+								navigator.clipboard.writeText(shareUrl(token));
+								toast('Link copied');
+							}}
+						>
+							<Copy className="size-4" /> Copy
+						</Button>
+					</div>
+					<div className="flex justify-between gap-2">
+						<Button variant="ghost" onClick={turnOff} loading={busy} className="text-red-600! hover:text-red-700!">
+							Turn off link
+						</Button>
+						<Button onClick={onClose}>Done</Button>
+					</div>
+				</div>
+			) : (
+				<div className="space-y-4">
+					<p className="text-sm text-zinc-500">
+						Create a link that lets anyone read this article without an account, for example to send to a client. You can turn it off at any time.
+					</p>
+					<div className="flex justify-end gap-2">
+						<Button onClick={onClose}>Cancel</Button>
+						<Button variant="primary" onClick={create} loading={busy}>
+							<Link2 className="size-4" /> Create link
+						</Button>
+					</div>
+				</div>
+			)}
+		</Modal>
 	);
 }

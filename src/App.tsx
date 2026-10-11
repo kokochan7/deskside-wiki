@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { BookOpen, Building2, LayoutDashboard, LogOut, Menu, Moon, Search, Settings as SettingsIcon, Sun, UserCog, Users, X } from 'lucide-react';
+import { BookOpen, Building2, LayoutDashboard, LogIn, LogOut, Menu, Moon, Search, Settings as SettingsIcon, Sun, UserCog, Users, X } from 'lucide-react';
 import { api, setUnauthorizedHandler, type Settings, type User } from './api';
 import { BrandingCtx, BrandMark, DEFAULT_SETTINGS, loadBranding, useBranding } from './branding';
 import { navigate, useRoute } from './router';
@@ -17,6 +17,7 @@ import { ClientView } from './pages/ClientView';
 import { Team } from './pages/Team';
 import { Account } from './pages/Account';
 import { SiteSettings } from './pages/SiteSettings';
+import { SharedArticle } from './pages/SharedArticle';
 
 
 export default function App() {
@@ -24,6 +25,8 @@ export default function App() {
 	const [user, setUser] = useState<User | null>(null);
 	const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 	const reloadBranding = useCallback(async () => setSettings(await loadBranding()), []);
+	const route = useRoute();
+	const shared = route[0] === 'share' && route[1];
 
 	const load = useCallback(async () => {
 		try {
@@ -41,18 +44,28 @@ export default function App() {
 			setState('login');
 		});
 		reloadBranding();
-		load();
+		if (!shared) load();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [load, reloadBranding]);
+
+	// Share links work for anyone, signed in or not, without the app around them.
+	if (shared)
+		return (
+			<BrandingCtx.Provider value={{ settings, reload: reloadBranding }}>
+				<SharedArticle token={shared} />
+			</BrandingCtx.Provider>
+		);
 
 	return (
 		<BrandingCtx.Provider value={{ settings, reload: reloadBranding }}>
 		<FeedbackProvider>
 			{state === 'loading' && <Spinner />}
 			{state === 'setup' && <Setup onDone={load} />}
-			{state === 'login' && <Login onDone={load} />}
+			{state === 'login' && <Login onDone={load} onBrowse={settings.public_access ? load : undefined} />}
 			{state === 'in' && user && (
 				<UserCtx.Provider value={user}>
 					<Shell
+						onLogin={() => setState('login')}
 						onLogout={async () => {
 							await api.post('/logout').catch(() => {});
 							setUser(null);
@@ -79,7 +92,7 @@ function useTheme() {
 	return { dark, toggle };
 }
 
-function Shell({ onLogout }: { onLogout: () => void }) {
+function Shell({ onLogin, onLogout }: { onLogin: () => void; onLogout: () => void }) {
 	const user = useUser();
 	const { settings } = useBranding();
 	const route = useRoute();
@@ -104,7 +117,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 		{ href: '#/', label: 'Dashboard', icon: <LayoutDashboard className="size-4" />, key: '' },
 		{ href: '#/articles', label: 'Knowledge base', icon: <BookOpen className="size-4" />, key: 'articles' },
 		{ href: '#/clients', label: 'Clients', icon: <Building2 className="size-4" />, key: 'clients' },
-		{ href: '#/team', label: 'Team', icon: <Users className="size-4" />, key: 'team', show: user.role === 'admin' },
+		{ href: '#/team', label: 'User Accounts', icon: <Users className="size-4" />, key: 'team', show: user.role === 'admin' },
 		{ href: '#/settings', label: 'Settings', icon: <SettingsIcon className="size-4" />, key: 'settings', show: user.role === 'admin' },
 	];
 
@@ -145,6 +158,17 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 			</nav>
 			<div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
 				<div className="flex items-center gap-1">
+					{user.guest ? (
+						<button onClick={onLogin} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800/60">
+							<span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
+								<LogIn className="size-4" />
+							</span>
+							<span className="min-w-0 text-left">
+								<span className="block truncate">Sign in</span>
+								<span className="block truncate text-xs font-normal text-zinc-500">Viewing as guest</span>
+							</span>
+						</button>
+					) : (
 					<a href="#/account" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/60" title="Your account">
 						<span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-semibold text-white">
 							{initials(user.name)}
@@ -154,12 +178,15 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 							<span className="block truncate text-xs capitalize text-zinc-500">{user.role}</span>
 						</span>
 					</a>
+					)}
 					<button onClick={toggle} className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Toggle theme" aria-label="Toggle theme">
 						{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
 					</button>
-					<button onClick={onLogout} className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Sign out" aria-label="Sign out">
-						<LogOut className="size-4" />
-					</button>
+					{!user.guest && (
+						<button onClick={onLogout} className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Sign out" aria-label="Sign out">
+							<LogOut className="size-4" />
+						</button>
+					)}
 				</div>
 			</div>
 		</div>
@@ -209,7 +236,7 @@ function Page({ route }: { route: string[] }) {
 	if (a === 'clients') return b ? <ClientView id={Number(b)} key={b} /> : <ClientList />;
 	if (a === 'team' && user.role === 'admin') return <Team />;
 	if (a === 'settings' && user.role === 'admin') return <SiteSettings />;
-	if (a === 'account') return <Account />;
+	if (a === 'account' && !user.guest) return <Account />;
 	return <NotFound />;
 }
 

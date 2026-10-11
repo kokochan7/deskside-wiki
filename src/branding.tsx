@@ -5,7 +5,7 @@ import { uploadImage } from './images';
 import { Button, cx, useFeedback } from './components/ui';
 import { initials } from './format';
 
-export const DEFAULT_SETTINGS: Settings = { site_name: 'Deskside KB', accent: 'violet', logo_url: null };
+export const DEFAULT_SETTINGS: Settings = { site_name: 'Deskside KB', accent: 'violet', logo_url: null, public_access: false };
 
 // Shades 50–900 for each accent the admin can pick. Applied as Tailwind's --color-brand-* variables.
 export const ACCENTS: Record<Accent, string[]> = {

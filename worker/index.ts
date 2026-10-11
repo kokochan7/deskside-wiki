@@ -5,7 +5,7 @@ import { ensureSchema } from './schema';
 import { hashPassword, verifyPassword, newSessionToken, hashToken } from './auth';
 
 type Role = 'admin' | 'technician' | 'viewer';
-type User = { id: number; email: string; name: string; role: Role };
+type User = { id: number; email: string; name: string; role: Role; guest?: boolean };
 type Env = { Bindings: { DB: D1Database; ASSETS: Fetcher }; Variables: { user: User } };
 
 const SESSION_COOKIE = 'kb_session';
@@ -88,17 +88,22 @@ async function startSession(c: Context<Env>, userId: number) {
 	});
 }
 
+const GUEST: User = { id: 0, email: '', name: 'Guest', role: 'viewer', guest: true };
+
+// Signed-in users get their own account. When public viewing is on, anyone else can read (GET) as a guest viewer.
 const requireUser = async (c: Context<Env>, next: Next) => {
 	const token = getCookie(c, SESSION_COOKIE);
-	if (!token) fail(401, 'Please sign in.');
-	const user = await c.env.DB.prepare(
-		`SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
-		 WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`,
-	)
-		.bind(await hashToken(token!))
-		.first<User>();
-	if (!user) fail(401, 'Your session has expired. Please sign in again.');
-	c.set('user', user!);
+	const user = token
+		? await c.env.DB.prepare(
+				`SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+				 WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`,
+			)
+				.bind(await hashToken(token))
+				.first<User>()
+		: null;
+	if (user) c.set('user', user);
+	else if (c.req.method === 'GET' && (await getSettings(c.env.DB)).public_access === '1' && (await userCount(c.env.DB)) > 0) c.set('user', GUEST);
+	else fail(401, token ? 'Your session has expired. Please sign in again.' : 'Please sign in.');
 	await next();
 };
 
@@ -160,7 +165,7 @@ app.post('/logout', async (c) => {
 // ---------- branding (readable before sign-in so the login page can show it) ----------
 
 const ACCENTS = ['violet', 'blue', 'teal', 'green', 'orange', 'rose', 'slate'];
-const DEFAULT_SETTINGS = { site_name: 'Deskside KB', accent: 'violet', logo_image_id: '' };
+const DEFAULT_SETTINGS = { site_name: 'Deskside KB', accent: 'violet', logo_image_id: '', public_access: '1' };
 type Settings = typeof DEFAULT_SETTINGS;
 
 async function getSettings(db: D1Database): Promise<Settings> {
@@ -172,7 +177,12 @@ async function getSettings(db: D1Database): Promise<Settings> {
 
 app.get('/settings', async (c) => {
 	const s = await getSettings(c.env.DB);
-	return c.json({ site_name: s.site_name, accent: s.accent, logo_url: s.logo_image_id ? `/api/settings/logo/${s.logo_image_id}` : null });
+	return c.json({
+		site_name: s.site_name,
+		accent: s.accent,
+		logo_url: s.logo_image_id ? `/api/settings/logo/${s.logo_image_id}` : null,
+		public_access: s.public_access === '1',
+	});
 });
 
 // The site logo is public (it appears on the sign-in page); every other image needs a session.
@@ -206,7 +216,36 @@ async function imageIdOrNull(db: D1Database, v: unknown): Promise<string | null>
 	return id;
 }
 
-// Everything below needs a signed-in user.
+// ---------- share links (anyone with the link can read that one article) ----------
+
+const SHARE_TOKEN = /^[0-9a-f]{32}$/;
+
+async function sharedArticle(db: D1Database, token: string) {
+	if (!SHARE_TOKEN.test(token)) fail(404, 'This link is invalid or has been turned off.');
+	const row = await db.prepare(
+		`SELECT a.id, a.title, a.body, a.category, a.tags, a.updated_at, c.name AS client_name
+		 FROM articles a LEFT JOIN clients c ON c.id = a.client_id WHERE a.share_token = ?`,
+	)
+		.bind(token)
+		.first<{ id: number; title: string; body: string }>();
+	if (!row) fail(404, 'This link is invalid or has been turned off.');
+	return row!;
+}
+
+app.get('/share/:token', async (c) => {
+	const { id, ...article } = await sharedArticle(c.env.DB, c.req.param('token'));
+	return c.json(article);
+});
+
+// Images inside a shared article, and only those.
+app.get('/share/:token/images/:id', async (c) => {
+	const a = await sharedArticle(c.env.DB, c.req.param('token'));
+	const id = c.req.param('id');
+	if (!a.body.includes(`/api/images/${id}`)) fail(404, 'Image not found.');
+	return serveImage(c.env.DB, id, 'private, max-age=3600');
+});
+
+// Everything below needs a signed-in user, or a guest when public viewing is on.
 app.use('*', requireUser);
 
 app.get('/me', (c) => c.json(c.get('user')));
@@ -304,8 +343,9 @@ app.get('/articles/:id', async (c) => {
 		 LEFT JOIN users cu ON cu.id = a.created_by LEFT JOIN users uu ON uu.id = a.updated_by WHERE a.id = ?`,
 	)
 		.bind(idParam(c))
-		.first();
+		.first<Record<string, unknown>>();
 	if (!row) fail(404, 'Article not found.');
+	if (c.get('user').role === 'viewer') delete row!.share_token;
 	return c.json(row);
 });
 
@@ -350,8 +390,25 @@ app.put('/articles/:id', canEdit, async (c) => {
 	return c.json({ id });
 });
 
-app.delete('/articles/:id', canEdit, async (c) => {
+app.delete('/articles/:id', adminOnly, async (c) => {
 	const res = await c.env.DB.prepare(`DELETE FROM articles WHERE id = ?`).bind(idParam(c)).run();
+	if (!res.meta.changes) fail(404, 'Article not found.');
+	return c.json({ ok: true });
+});
+
+// Turn on a public link for an article (keeps the existing link if there is one), or turn it off.
+app.post('/articles/:id/share', canEdit, async (c) => {
+	const id = idParam(c);
+	const token = crypto.randomUUID().replace(/-/g, '');
+	const row = await c.env.DB.prepare(`UPDATE articles SET share_token = COALESCE(share_token, ?) WHERE id = ? RETURNING share_token`)
+		.bind(token, id)
+		.first<{ share_token: string }>();
+	if (!row) fail(404, 'Article not found.');
+	return c.json({ share_token: row!.share_token });
+});
+
+app.delete('/articles/:id/share', canEdit, async (c) => {
+	const res = await c.env.DB.prepare(`UPDATE articles SET share_token = NULL WHERE id = ?`).bind(idParam(c)).run();
 	if (!res.meta.changes) fail(404, 'Article not found.');
 	return c.json({ ok: true });
 });
@@ -374,7 +431,7 @@ app.post('/images', canEdit, async (c) => {
 	return c.json({ id, url: `/api/images/${id}` }, 201);
 });
 
-// Images never change once uploaded; only signed-in users can fetch them.
+// Images never change once uploaded; only signed-in users (or guests, when public viewing is on) can fetch them.
 app.get('/images/:id', (c) => serveImage(c.env.DB, c.req.param('id'), 'private, max-age=31536000, immutable'));
 
 // ---------- clients ----------
@@ -433,7 +490,7 @@ app.put('/clients/:id', canEdit, async (c) => {
 	return c.json({ id });
 });
 
-app.delete('/clients/:id', canEdit, async (c) => {
+app.delete('/clients/:id', adminOnly, async (c) => {
 	const id = idParam(c);
 	// D1 doesn't enforce foreign keys by default, so clean up children explicitly.
 	const db = c.env.DB;
@@ -454,8 +511,14 @@ app.put('/settings', adminOnly, async (c) => {
 	const accent = String(b.accent ?? 'violet');
 	if (!ACCENTS.includes(accent)) fail(400, 'Choose one of the listed colours.');
 	const logo = (await imageIdOrNull(c.env.DB, b.logo_image_id)) ?? '';
+	const publicAccess = b.public_access === false ? '0' : '1';
 	const put = c.env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
-	await c.env.DB.batch([put.bind('site_name', site_name), put.bind('accent', accent), put.bind('logo_image_id', logo)]);
+	await c.env.DB.batch([
+		put.bind('site_name', site_name),
+		put.bind('accent', accent),
+		put.bind('logo_image_id', logo),
+		put.bind('public_access', publicAccess),
+	]);
 	return c.json({ ok: true });
 });
 

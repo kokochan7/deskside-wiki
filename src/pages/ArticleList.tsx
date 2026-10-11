@@ -67,7 +67,7 @@ export function ArticleList() {
 				actions={
 					canEdit(user) && (
 						<Button variant="primary" onClick={() => navigate(`/articles/new${client && client !== 'none' ? `?client=${client}` : ''}`)}>
-							<FilePlus2 className="size-4" /> New article
+							<FilePlus2 className="size-4" /> Create New KB
 						</Button>
 					)
 				}
