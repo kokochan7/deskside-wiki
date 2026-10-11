@@ -58,7 +58,7 @@ export function Team() {
 									{u.id === me.id && <span className="text-xs font-normal text-zinc-400">(you)</span>}
 									{!u.active && <Badge tone="amber">Disabled</Badge>}
 								</div>
-								<div className="truncate text-sm text-zinc-500">{u.email}</div>
+								<div className="truncate text-sm text-zinc-500">{u.username}</div>
 							</div>
 							<span className="hidden text-xs text-zinc-400 md:inline">Last sign-in {timeAgo(u.last_login_at)}</span>
 							<Badge tone={u.role === 'admin' ? 'brand' : u.role === 'technician' ? 'green' : 'zinc'}>
@@ -84,12 +84,12 @@ export function Team() {
 function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null; onClose: () => void; onSaved: () => void }) {
 	const { toast } = useFeedback();
 	const isNew = user === 'new';
-	const [f, setF] = useState({ name: '', email: '', role: 'technician' as Role, password: '', active: true });
+	const [f, setF] = useState({ name: '', username: '', role: 'technician' as Role, password: '', active: true });
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		if (!user) return;
-		setF(user === 'new' ? { name: '', email: '', role: 'technician', password: '', active: true } : { name: user.name, email: user.email, role: user.role, password: '', active: !!user.active });
+		setF(user === 'new' ? { name: '', username: '', role: 'technician', password: '', active: true } : { name: user.name, username: user.username, role: user.role, password: '', active: !!user.active });
 		setError(null);
 		setBusy(false);
 	}, [user]);
@@ -116,8 +116,16 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 				<Field label="Name">
 					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
 				</Field>
-				<Field label="Email">
-					<Input type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+				<Field label="Username" hint="Used to sign in. Letters, numbers, dots, dashes and underscores.">
+					<Input
+						required
+						autoCapitalize="none"
+						autoCorrect="off"
+						spellCheck={false}
+						pattern="[A-Za-z0-9._\-]{2,40}"
+						value={f.username}
+						onChange={(e) => setF({ ...f, username: e.target.value })}
+					/>
 				</Field>
 				<Field label="Role" hint={ROLE_INFO[f.role]}>
 					<Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>

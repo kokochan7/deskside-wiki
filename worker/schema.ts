@@ -89,6 +89,29 @@ const MIGRATIONS: string[][] = [
 		`ALTER TABLE articles ADD COLUMN share_token TEXT`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS articles_share_token ON articles (share_token)`,
 	],
+	[
+		// An article can belong to several clients. articles.client_id is no longer used after this.
+		`CREATE TABLE IF NOT EXISTS article_clients (
+			article_id INTEGER NOT NULL,
+			client_id INTEGER NOT NULL,
+			PRIMARY KEY (article_id, client_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_article_clients_client ON article_clients (client_id)`,
+		`INSERT OR IGNORE INTO article_clients (article_id, client_id) SELECT id, client_id FROM articles WHERE client_id IS NOT NULL`,
+		// Categories are a fixed list that admins manage.
+		`CREATE TABLE IF NOT EXISTS categories (name TEXT PRIMARY KEY COLLATE NOCASE)`,
+		`INSERT OR IGNORE INTO categories (name) VALUES ('General'), ('Networking'), ('Microsoft 365'), ('Hardware'), ('Printers'), ('Security'), ('Onboarding')`,
+		`INSERT OR IGNORE INTO categories (name) SELECT DISTINCT category FROM articles`,
+		// Sign in with a username instead of an email. Existing accounts get the part of their email before the @,
+		// with the user id added if two people would end up with the same name.
+		`ALTER TABLE users RENAME COLUMN email TO username`,
+		`CREATE TABLE username_map AS SELECT id, lower(substr(username, 1, instr(username, '@') - 1)) AS base FROM users WHERE instr(username, '@') > 1`,
+		`UPDATE users SET username = (
+			SELECT m.base || CASE WHEN EXISTS (SELECT 1 FROM username_map o WHERE o.base = m.base AND o.id < m.id) THEN m.id ELSE '' END
+			FROM username_map m WHERE m.id = users.id
+		) WHERE id IN (SELECT id FROM username_map)`,
+		`DROP TABLE username_map`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

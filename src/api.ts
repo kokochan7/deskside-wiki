@@ -1,13 +1,12 @@
 export type Role = 'admin' | 'technician' | 'viewer';
-export type User = { id: number; email: string; name: string; role: Role; guest?: boolean };
+export type User = { id: number; username: string; name: string; role: Role; guest?: boolean };
 export type TeamMember = User & { active: number; created_at: string; last_login_at: string | null };
 export type ArticleSummary = {
 	id: number;
 	title: string;
 	category: string;
 	tags: string;
-	client_id: number | null;
-	client_name: string | null;
+	clients: ClientRef[];
 	updated_at: string;
 	updated_by_name: string | null;
 	snippet: string;
@@ -30,10 +29,13 @@ export type Client = {
 	article_count?: number;
 };
 export type ClientDetail = Client & { articles: { id: number; title: string; category: string; updated_at: string }[] };
+export type ClientRef = { id: number; name: string };
 export type Overview = {
-	counts: { articles: number; clients: number; users: number };
-	recent: { id: number; title: string; category: string; updated_at: string; client_name: string | null; updated_by_name: string | null }[];
+	counts: { articles: number; clients: number; users: number; internal: number; updated_30d: number };
+	recent: { id: number; title: string; category: string; updated_at: string; clients: ClientRef[]; updated_by_name: string | null }[];
 	categories: { category: string; count: number }[];
+	clients: { id: number; name: string; count: number }[];
+	weekly: { week: string; count: number }[];
 };
 
 export type Accent = 'violet' | 'blue' | 'teal' | 'green' | 'orange' | 'rose' | 'slate';

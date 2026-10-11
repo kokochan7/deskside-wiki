@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Building2, ExternalLink, FilePlus2, Layers, Search } from 'lucide-react';
+import { BookOpen, Building2, ExternalLink, FilePlus2, Layers, Search, Trash2 } from 'lucide-react';
 import { api, imageUrl, type ArticleSummary, type Client, type Overview } from '../api';
 import { ClientLogo } from '../branding';
 import { timeAgo } from '../format';
 import { navigate, query } from '../router';
 import { canEdit, useUser } from '../session';
-import { Badge, Button, Card, Empty, Input, PageHeader, Select, Spinner, cx } from '../components/ui';
+import { Badge, Button, Card, Empty, Input, PageHeader, Select, Spinner, cx, useFeedback } from '../components/ui';
 
 export function ArticleList() {
 	const user = useUser();
@@ -15,14 +15,18 @@ export function ArticleList() {
 	const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
 	const [categories, setCategories] = useState<string[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
-	const [total, setTotal] = useState(0);
+	const [counts, setCounts] = useState({ articles: 0, internal: 0 });
 	const [clientFilter, setClientFilter] = useState('');
+	const [selected, setSelected] = useState<Set<number>>(new Set());
+	const [reload, setReload] = useState(0);
+	const isAdmin = user.role === 'admin';
+	const { confirm, toast } = useFeedback();
 
 	useEffect(() => {
 		api.get<string[]>('/categories').then(setCategories).catch(() => {});
 		api.get<Client[]>('/clients').then(setClients).catch(() => {});
-		api.get<Overview>('/overview').then((o) => setTotal(o.counts.articles)).catch(() => {});
-	}, []);
+		api.get<Overview>('/overview').then((o) => setCounts(o.counts)).catch(() => {});
+	}, [reload]);
 
 	useEffect(() => {
 		const params = new URLSearchParams();
@@ -34,10 +38,31 @@ export function ArticleList() {
 			api.get<ArticleSummary[]>(`/articles?${params}`).then(setArticles).catch(() => setArticles([]));
 		}, 150);
 		return () => clearTimeout(t);
-	}, [q, category, client]);
+	}, [q, category, client, reload]);
+	// Only keep selections that are still visible after filtering.
+	useEffect(() => setSelected((s) => new Set(articles?.filter((a) => s.has(a.id)).map((a) => a.id))), [articles]);
 
-	const internalCount = total - clients.reduce((n, c) => n + (c.article_count ?? 0), 0);
-	const selected = clients.find((c) => String(c.id) === client);
+	const current = clients.find((c) => String(c.id) === client);
+	const toggle = (id: number) =>
+		setSelected((s) => {
+			const next = new Set(s);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	const allSelected = !!articles?.length && articles.every((a) => selected.has(a.id));
+	const deleteSelected = async () => {
+		const n = selected.size;
+		if (!(await confirm(`Delete ${n} article${n === 1 ? '' : 's'}?`, "They'll be permanently deleted. This can't be undone.", 'Delete'))) return;
+		try {
+			await api.post('/articles/delete', { ids: [...selected] });
+			toast(`${n} article${n === 1 ? '' : 's'} deleted`);
+			setSelected(new Set());
+			setReload((r) => r + 1);
+		} catch (e) {
+			toast((e as Error).message, 'error');
+		}
+	};
 	const shownClients = useMemo(
 		() => clients.filter((c) => c.name.toLowerCase().includes(clientFilter.toLowerCase())),
 		[clients, clientFilter],
@@ -81,8 +106,8 @@ export function ArticleList() {
 						<Input value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} placeholder="Find a client…" className="mb-2 h-8! text-xs" />
 					)}
 					<nav className="flex max-h-56 flex-col gap-0.5 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
-						{sideItem('', 'All articles', total, <Layers className="size-6 shrink-0 p-1 text-zinc-400" />)}
-						{sideItem('none', 'Internal', Math.max(0, internalCount), <Building2 className="size-6 shrink-0 p-1 text-zinc-400" />)}
+						{sideItem('', 'All articles', counts.articles, <Layers className="size-6 shrink-0 p-1 text-zinc-400" />)}
+						{sideItem('none', 'Internal', counts.internal, <Building2 className="size-6 shrink-0 p-1 text-zinc-400" />)}
 						{shownClients.length > 0 && <div className="my-1.5 border-t border-zinc-200 dark:border-zinc-800" />}
 						{shownClients.map((c) =>
 							sideItem(String(c.id), c.name, c.article_count ?? 0, <ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} size="sm" />),
@@ -91,11 +116,11 @@ export function ArticleList() {
 				</aside>
 
 				<section className="min-w-0">
-					{selected && (
+					{current && (
 						<div className="mb-4 flex items-center gap-3">
-							<ClientLogo name={selected.name} logoUrl={imageUrl(selected.logo_image_id)} size="md" />
-							<h2 className="text-lg font-semibold">{selected.name}</h2>
-							<a href={`#/clients/${selected.id}`} className="ml-1 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-brand-600">
+							<ClientLogo name={current.name} logoUrl={imageUrl(current.logo_image_id)} size="md" />
+							<h2 className="text-lg font-semibold">{current.name}</h2>
+							<a href={`#/clients/${current.id}`} className="ml-1 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-brand-600">
 								Client details <ExternalLink className="size-3" />
 							</a>
 						</div>
@@ -121,13 +146,49 @@ export function ArticleList() {
 						</Empty>
 					) : (
 						<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
+							{isAdmin && (
+								<div className="flex items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
+									<input
+										type="checkbox"
+										checked={allSelected}
+										onChange={() => setSelected(allSelected ? new Set() : new Set(articles.map((a) => a.id)))}
+										className="size-4 accent-brand-600"
+										aria-label="Select all"
+									/>
+									{selected.size ? (
+										<>
+											<span className="font-medium text-zinc-700 dark:text-zinc-300">{selected.size} selected</span>
+											<Button size="sm" variant="danger" onClick={deleteSelected} className="ml-auto h-7!">
+												<Trash2 className="size-3.5" /> Delete selected
+											</Button>
+										</>
+									) : (
+										<span>Select articles to delete several at once</span>
+									)}
+								</div>
+							)}
 							{articles.map((a) => (
-								<a key={a.id} href={`#/articles/${a.id}`} className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-									<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{a.title}</span>
-									{!client && a.client_name && <span className="hidden max-w-40 truncate text-xs text-zinc-500 sm:inline">{a.client_name}</span>}
-									<Badge>{a.category}</Badge>
-									<span className="hidden w-24 shrink-0 text-right text-xs text-zinc-400 md:inline">{timeAgo(a.updated_at)}</span>
-								</a>
+								<div key={a.id} className={cx('group flex items-center text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40', selected.has(a.id) && 'bg-brand-50/60 dark:bg-brand-500/10')}>
+									{isAdmin && (
+										<input
+											type="checkbox"
+											checked={selected.has(a.id)}
+											onChange={() => toggle(a.id)}
+											className="ml-4 size-4 shrink-0 accent-brand-600"
+											aria-label={`Select ${a.title}`}
+										/>
+									)}
+									<a href={`#/articles/${a.id}`} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5">
+										<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{a.title}</span>
+										{!client && a.clients.length > 0 && (
+											<span className="hidden max-w-56 truncate text-xs text-zinc-500 sm:inline" title={a.clients.map((c) => c.name).join(', ')}>
+												{a.clients.map((c) => c.name).join(', ')}
+											</span>
+										)}
+										<Badge>{a.category}</Badge>
+										<span className="hidden w-24 shrink-0 text-right text-xs text-zinc-400 md:inline">{timeAgo(a.updated_at)}</span>
+									</a>
+								</div>
 							))}
 						</Card>
 					)}

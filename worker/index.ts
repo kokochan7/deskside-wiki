@@ -5,7 +5,7 @@ import { ensureSchema } from './schema';
 import { hashPassword, verifyPassword, newSessionToken, hashToken } from './auth';
 
 type Role = 'admin' | 'technician' | 'viewer';
-type User = { id: number; email: string; name: string; role: Role; guest?: boolean };
+type User = { id: number; username: string; name: string; role: Role; guest?: boolean };
 type Env = { Bindings: { DB: D1Database; ASSETS: Fetcher }; Variables: { user: User } };
 
 const SESSION_COOKIE = 'kb_session';
@@ -48,9 +48,9 @@ function str(v: unknown, field: string, { required = false, max = 200 } = {}): s
 	return s;
 }
 
-function email(v: unknown): string {
-	const s = str(v, 'Email', { required: true }).toLowerCase();
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) fail(400, 'Enter a valid email address.');
+function username(v: unknown): string {
+	const s = str(v, 'Username', { required: true, max: 40 }).toLowerCase();
+	if (!/^[a-z0-9._-]{2,40}$/.test(s)) fail(400, 'Usernames can use letters, numbers, dots, dashes and underscores (at least 2 characters).');
 	return s;
 }
 
@@ -88,14 +88,14 @@ async function startSession(c: Context<Env>, userId: number) {
 	});
 }
 
-const GUEST: User = { id: 0, email: '', name: 'Guest', role: 'viewer', guest: true };
+const GUEST: User = { id: 0, username: '', name: 'Guest', role: 'viewer', guest: true };
 
 // Signed-in users get their own account. When public viewing is on, anyone else can read (GET) as a guest viewer.
 const requireUser = async (c: Context<Env>, next: Next) => {
 	const token = getCookie(c, SESSION_COOKIE);
 	const user = token
 		? await c.env.DB.prepare(
-				`SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+				`SELECT u.id, u.username, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
 				 WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`,
 			)
 				.bind(await hashToken(token))
@@ -127,13 +127,13 @@ app.get('/setup', async (c) => c.json({ needsSetup: (await userCount(c.env.DB)) 
 app.post('/setup', async (c) => {
 	const b = await body(c);
 	const name = str(b.name, 'Name', { required: true });
-	const mail = email(b.email);
+	const login = username(b.username);
 	const hash = await hashPassword(password(b.password));
 	const res = await c.env.DB.prepare(
-		`INSERT INTO users (email, name, role, password_hash)
+		`INSERT INTO users (username, name, role, password_hash)
 		 SELECT ?, ?, 'admin', ? WHERE NOT EXISTS (SELECT 1 FROM users)`,
 	)
-		.bind(mail, name, hash)
+		.bind(login, name, hash)
 		.run();
 	if (!res.meta.changes) fail(409, 'Setup has already been completed. Please sign in.');
 	await startSession(c, res.meta.last_row_id);
@@ -142,17 +142,18 @@ app.post('/setup', async (c) => {
 
 app.post('/login', async (c) => {
 	const b = await body(c);
-	const mail = str(b.email, 'Email', { required: true }).toLowerCase();
+	// People who still type their old email are matched on the part before the @, which became their username.
+	const login = str(b.username, 'Username', { required: true }).toLowerCase().split('@')[0];
 	const pw = typeof b.password === 'string' ? b.password : '';
-	const user = await c.env.DB.prepare(`SELECT id, password_hash, active FROM users WHERE email = ?`)
-		.bind(mail)
+	const user = await c.env.DB.prepare(`SELECT id, password_hash, active FROM users WHERE username = ?`)
+		.bind(login)
 		.first<{ id: number; password_hash: string; active: number }>();
 	const ok = user ? await verifyPassword(pw, user.password_hash) : await verifyPassword(pw, DUMMY_HASH);
-	if (!user || !ok || !user.active) fail(401, 'Incorrect email or password.');
+	if (!user || !ok || !user.active) fail(401, 'Incorrect username or password.');
 	await startSession(c, user!.id);
 	return c.json({ ok: true });
 });
-// Compared against when the email doesn't exist, so response time doesn't reveal which emails are registered.
+// Compared against when the username doesn't exist, so response time doesn't reveal which usernames are registered.
 const DUMMY_HASH = 'pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
 app.post('/logout', async (c) => {
@@ -223,13 +224,13 @@ const SHARE_TOKEN = /^[0-9a-f]{32}$/;
 async function sharedArticle(db: D1Database, token: string) {
 	if (!SHARE_TOKEN.test(token)) fail(404, 'This link is invalid or has been turned off.');
 	const row = await db.prepare(
-		`SELECT a.id, a.title, a.body, a.category, a.tags, a.updated_at, c.name AS client_name
-		 FROM articles a LEFT JOIN clients c ON c.id = a.client_id WHERE a.share_token = ?`,
+		`SELECT a.id, a.title, a.body, a.category, a.tags, a.updated_at, ${CLIENTS_OF('a')} AS clients
+		 FROM articles a WHERE a.share_token = ?`,
 	)
 		.bind(token)
-		.first<{ id: number; title: string; body: string }>();
+		.first<{ id: number; title: string; body: string; clients: string }>();
 	if (!row) fail(404, 'This link is invalid or has been turned off.');
-	return row!;
+	return withClients(row!);
 }
 
 app.get('/share/:token', async (c) => {
@@ -269,21 +270,46 @@ app.put('/me/password', async (c) => {
 
 // ---------- overview ----------
 
+// The clients an article belongs to, as a JSON array of {id, name} sorted by name.
+const CLIENTS_OF = (alias: string) =>
+	`(SELECT json_group_array(json_object('id', id, 'name', name)) FROM (SELECT c.id, c.name FROM article_clients ac JOIN clients c ON c.id = ac.client_id WHERE ac.article_id = ${alias}.id ORDER BY c.name COLLATE NOCASE))`;
+
+function withClients<T extends { clients: string }>(row: T): Omit<T, 'clients'> & { clients: { id: number; name: string }[] } {
+	return { ...row, clients: JSON.parse(row.clients || '[]') };
+}
+
 app.get('/overview', async (c) => {
 	const db = c.env.DB;
-	const [counts, recent, categories] = await db.batch([
+	const [counts, recent, categories, clients, weekly] = await db.batch([
 		db.prepare(
 			`SELECT (SELECT COUNT(*) FROM articles) AS articles, (SELECT COUNT(*) FROM clients) AS clients,
-			        (SELECT COUNT(*) FROM users WHERE active = 1) AS users`,
+			        (SELECT COUNT(*) FROM users WHERE active = 1) AS users,
+			        (SELECT COUNT(*) FROM articles a WHERE NOT EXISTS (SELECT 1 FROM article_clients ac WHERE ac.article_id = a.id)) AS internal,
+			        (SELECT COUNT(*) FROM articles WHERE updated_at >= datetime('now', '-30 days')) AS updated_30d`,
 		),
 		db.prepare(
-			`SELECT a.id, a.title, a.category, a.updated_at, c.name AS client_name, u.name AS updated_by_name
-			 FROM articles a LEFT JOIN clients c ON c.id = a.client_id LEFT JOIN users u ON u.id = a.updated_by
+			`SELECT a.id, a.title, a.category, a.updated_at, ${CLIENTS_OF('a')} AS clients, u.name AS updated_by_name
+			 FROM articles a LEFT JOIN users u ON u.id = a.updated_by
 			 ORDER BY a.updated_at DESC LIMIT 8`,
 		),
 		db.prepare(`SELECT category, COUNT(*) AS count FROM articles GROUP BY category ORDER BY count DESC, category`),
+		db.prepare(
+			`SELECT c.id, c.name, COUNT(ac.article_id) AS count FROM clients c JOIN article_clients ac ON ac.client_id = c.id
+			 GROUP BY c.id ORDER BY count DESC, c.name COLLATE NOCASE LIMIT 8`,
+		),
+		// Articles created per week for the last 12 weeks (weeks start on Monday).
+		db.prepare(
+			`SELECT date(created_at, 'weekday 0', '-6 days') AS week, COUNT(*) AS count FROM articles
+			 WHERE created_at >= date('now', 'weekday 0', '-83 days') GROUP BY week ORDER BY week`,
+		),
 	]);
-	return c.json({ counts: counts.results[0], recent: recent.results, categories: categories.results });
+	return c.json({
+		counts: counts.results[0],
+		recent: (recent.results as { clients: string }[]).map(withClients),
+		categories: categories.results,
+		clients: clients.results,
+		weekly: weekly.results,
+	});
 });
 
 // ---------- articles ----------
@@ -318,82 +344,122 @@ app.get('/articles', async (c) => {
 		where.push('a.category = ?');
 		args.push(category);
 	}
-	if (client === 'none') where.push('a.client_id IS NULL');
+	if (client === 'none') where.push('NOT EXISTS (SELECT 1 FROM article_clients ac WHERE ac.article_id = a.id)');
 	else if (client) {
-		where.push('a.client_id = ?');
+		where.push('EXISTS (SELECT 1 FROM article_clients ac WHERE ac.article_id = a.id AND ac.client_id = ?)');
 		args.push(Number(client));
 	}
-	const sql = `SELECT a.id, a.title, a.category, a.tags, a.client_id, a.updated_at, ${snippet} AS snippet,
-		c.name AS client_name, u.name AS updated_by_name
-		FROM ${from} LEFT JOIN clients c ON c.id = a.client_id LEFT JOIN users u ON u.id = a.updated_by
+	const sql = `SELECT a.id, a.title, a.category, a.tags, a.updated_at, ${snippet} AS snippet,
+		${CLIENTS_OF('a')} AS clients, u.name AS updated_by_name
+		FROM ${from} LEFT JOIN users u ON u.id = a.updated_by
 		${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${order} LIMIT 200`;
-	const { results } = await c.env.DB.prepare(sql).bind(...args).all();
-	return c.json(results);
+	const { results } = await c.env.DB.prepare(sql).bind(...args).all<{ clients: string }>();
+	return c.json(results.map(withClients));
 });
 
 app.get('/categories', async (c) => {
-	const { results } = await c.env.DB.prepare(`SELECT DISTINCT category FROM articles ORDER BY category`).all<{ category: string }>();
-	return c.json(results.map((r) => r.category));
+	const { results } = await c.env.DB.prepare(`SELECT name FROM categories ORDER BY name COLLATE NOCASE`).all<{ name: string }>();
+	return c.json(results.map((r) => r.name));
 });
 
 app.get('/articles/:id', async (c) => {
 	const row = await c.env.DB.prepare(
-		`SELECT a.*, c.name AS client_name, cu.name AS created_by_name, uu.name AS updated_by_name
-		 FROM articles a LEFT JOIN clients c ON c.id = a.client_id
-		 LEFT JOIN users cu ON cu.id = a.created_by LEFT JOIN users uu ON uu.id = a.updated_by WHERE a.id = ?`,
+		`SELECT a.*, ${CLIENTS_OF('a')} AS clients, cu.name AS created_by_name, uu.name AS updated_by_name
+		 FROM articles a LEFT JOIN users cu ON cu.id = a.created_by LEFT JOIN users uu ON uu.id = a.updated_by WHERE a.id = ?`,
 	)
 		.bind(idParam(c))
-		.first<Record<string, unknown>>();
+		.first<Record<string, unknown> & { clients: string }>();
 	if (!row) fail(404, 'Article not found.');
-	if (c.get('user').role === 'viewer') delete row!.share_token;
-	return c.json(row);
+	const { client_id, ...article } = withClients(row!);
+	if (c.get('user').role === 'viewer') delete article.share_token;
+	return c.json(article);
 });
 
 async function articleFields(c: Context<Env>) {
 	const b = await body(c);
-	const clientId = b.client_id ? Number(b.client_id) : null;
-	if (clientId && !(await c.env.DB.prepare(`SELECT 1 FROM clients WHERE id = ?`).bind(clientId).first()))
-		fail(400, 'That client no longer exists.');
+	const db = c.env.DB;
+	const clientIds = [...new Set((Array.isArray(b.client_ids) ? b.client_ids : []).map(Number))];
+	if (clientIds.some((id) => !Number.isInteger(id) || id <= 0)) fail(400, 'Invalid client.');
+	if (clientIds.length) {
+		const found = await db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE id IN (${clientIds.map(() => '?').join(',')})`)
+			.bind(...clientIds)
+			.first<{ n: number }>();
+		if (found!.n !== clientIds.length) fail(400, 'One of those clients no longer exists.');
+	}
+	const categoryName = str(b.category, 'Category', { max: 60 }) || 'General';
+	const category = await db.prepare(`SELECT name FROM categories WHERE name = ?`).bind(categoryName).first<{ name: string }>();
+	if (!category) fail(400, 'Choose a category from the list. Admins can add categories in Settings.');
 	return {
 		title: str(b.title, 'Title', { required: true }),
 		body: str(b.body, 'Article body', { max: 200_000 }),
-		category: str(b.category, 'Category', { max: 60 }) || 'General',
+		category: category!.name,
 		tags: str(b.tags, 'Tags', { max: 300 })
 			.split(',')
 			.map((t) => t.trim())
 			.filter(Boolean)
 			.join(', '),
-		client_id: clientId,
+		clientIds,
 	};
 }
+
+const setArticleClients = (db: D1Database, articleId: number, clientIds: number[]) => [
+	db.prepare(`DELETE FROM article_clients WHERE article_id = ?`).bind(articleId),
+	...clientIds.map((cid) => db.prepare(`INSERT INTO article_clients (article_id, client_id) VALUES (?, ?)`).bind(articleId, cid)),
+];
 
 app.post('/articles', canEdit, async (c) => {
 	const f = await articleFields(c);
 	const uid = c.get('user').id;
-	const res = await c.env.DB.prepare(
-		`INSERT INTO articles (title, body, category, tags, client_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-	)
-		.bind(f.title, f.body, f.category, f.tags, f.client_id, uid, uid)
+	const db = c.env.DB;
+	const res = await db.prepare(`INSERT INTO articles (title, body, category, tags, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)`)
+		.bind(f.title, f.body, f.category, f.tags, uid, uid)
 		.run();
-	return c.json({ id: res.meta.last_row_id }, 201);
+	const id = res.meta.last_row_id;
+	if (f.clientIds.length) await db.batch(setArticleClients(db, id, f.clientIds));
+	return c.json({ id }, 201);
 });
 
 app.put('/articles/:id', canEdit, async (c) => {
 	const id = idParam(c);
 	const f = await articleFields(c);
-	const res = await c.env.DB.prepare(
-		`UPDATE articles SET title = ?, body = ?, category = ?, tags = ?, client_id = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`,
-	)
-		.bind(f.title, f.body, f.category, f.tags, f.client_id, c.get('user').id, id)
-		.run();
+	const db = c.env.DB;
+	const [res] = await db.batch([
+		db.prepare(`UPDATE articles SET title = ?, body = ?, category = ?, tags = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`).bind(
+			f.title,
+			f.body,
+			f.category,
+			f.tags,
+			c.get('user').id,
+			id,
+		),
+		...setArticleClients(db, id, f.clientIds),
+	]);
 	if (!res.meta.changes) fail(404, 'Article not found.');
 	return c.json({ id });
 });
 
+const deleteArticles = (db: D1Database, ids: number[]) => {
+	const marks = ids.map(() => '?').join(',');
+	return db.batch([
+		db.prepare(`DELETE FROM articles WHERE id IN (${marks}) RETURNING id`).bind(...ids),
+		db.prepare(`DELETE FROM article_clients WHERE article_id IN (${marks})`).bind(...ids),
+	]);
+};
+
 app.delete('/articles/:id', adminOnly, async (c) => {
-	const res = await c.env.DB.prepare(`DELETE FROM articles WHERE id = ?`).bind(idParam(c)).run();
-	if (!res.meta.changes) fail(404, 'Article not found.');
+	const [res] = await deleteArticles(c.env.DB, [idParam(c)]);
+	if (!res.results.length) fail(404, 'Article not found.');
 	return c.json({ ok: true });
+});
+
+// Delete several articles at once (admins only).
+app.post('/articles/delete', adminOnly, async (c) => {
+	const b = await body(c);
+	const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(Number))].filter((id) => Number.isInteger(id) && id > 0);
+	if (!ids.length) fail(400, 'Select at least one article.');
+	if (ids.length > 200) fail(400, 'Delete at most 200 articles at a time.');
+	const [res] = await deleteArticles(c.env.DB, ids);
+	return c.json({ deleted: res.results.length });
 });
 
 // Turn on a public link for an article (keeps the existing link if there is one), or turn it off.
@@ -438,7 +504,7 @@ app.get('/images/:id', (c) => serveImage(c.env.DB, c.req.param('id'), 'private, 
 
 app.get('/clients', async (c) => {
 	const { results } = await c.env.DB.prepare(
-		`SELECT c.*, (SELECT COUNT(*) FROM articles WHERE client_id = c.id) AS article_count
+		`SELECT c.*, (SELECT COUNT(*) FROM article_clients WHERE client_id = c.id) AS article_count
 		 FROM clients c ORDER BY c.name COLLATE NOCASE`,
 	).all();
 	return c.json(results);
@@ -449,7 +515,10 @@ app.get('/clients/:id', async (c) => {
 	const db = c.env.DB;
 	const [client, articles] = await db.batch([
 		db.prepare(`SELECT * FROM clients WHERE id = ?`).bind(id),
-		db.prepare(`SELECT id, title, category, updated_at FROM articles WHERE client_id = ? ORDER BY updated_at DESC`).bind(id),
+		db.prepare(
+			`SELECT a.id, a.title, a.category, a.updated_at FROM articles a JOIN article_clients ac ON ac.article_id = a.id
+			 WHERE ac.client_id = ? ORDER BY a.updated_at DESC`,
+		).bind(id),
 	]);
 	if (!client.results[0]) fail(404, 'Client not found.');
 	return c.json({ ...(client.results[0] as object), articles: articles.results });
@@ -497,7 +566,7 @@ app.delete('/clients/:id', adminOnly, async (c) => {
 	const [res] = await db.batch([
 		db.prepare(`DELETE FROM clients WHERE id = ?`).bind(id),
 		db.prepare(`DELETE FROM contacts WHERE client_id = ?`).bind(id),
-		db.prepare(`UPDATE articles SET client_id = NULL WHERE client_id = ?`).bind(id),
+		db.prepare(`DELETE FROM article_clients WHERE client_id = ?`).bind(id),
 	]);
 	if (!res.meta.changes) fail(404, 'Client not found.');
 	return c.json({ ok: true });
@@ -522,11 +591,59 @@ app.put('/settings', adminOnly, async (c) => {
 	return c.json({ ok: true });
 });
 
+// ---------- categories (admin only) ----------
+
+app.get('/categories/usage', adminOnly, async (c) => {
+	const { results } = await c.env.DB.prepare(
+		`SELECT k.name, (SELECT COUNT(*) FROM articles a WHERE a.category = k.name) AS count FROM categories k ORDER BY k.name COLLATE NOCASE`,
+	).all();
+	return c.json(results);
+});
+
+const categoryName = (v: unknown) => str(v, 'Category name', { required: true, max: 60 });
+
+app.post('/categories', adminOnly, async (c) => {
+	const name = categoryName((await body(c)).name);
+	const res = await c.env.DB.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`).bind(name).run();
+	if (!res.meta.changes) fail(409, 'That category already exists.');
+	return c.json({ ok: true }, 201);
+});
+
+// Rename a category; its articles move with it.
+app.put('/categories/:name', adminOnly, async (c) => {
+	const old = c.req.param('name') ?? '';
+	if (old.toLowerCase() === 'general') fail(400, 'General is the default category and can’t be renamed.');
+	const name = categoryName((await body(c)).name);
+	const db = c.env.DB;
+	if (!(await db.prepare(`SELECT 1 FROM categories WHERE name = ?`).bind(old).first())) fail(404, 'Category not found.');
+	if (name.toLowerCase() !== old.toLowerCase() && (await db.prepare(`SELECT 1 FROM categories WHERE name = ?`).bind(name).first()))
+		fail(409, 'That category already exists.');
+	await db.batch([
+		db.prepare(`UPDATE categories SET name = ? WHERE name = ?`).bind(name, old),
+		db.prepare(`UPDATE articles SET category = ? WHERE category = ? COLLATE NOCASE`).bind(name, old),
+	]);
+	return c.json({ ok: true });
+});
+
+// Delete a category; its articles move to General, which can't be deleted.
+app.delete('/categories/:name', adminOnly, async (c) => {
+	const name = c.req.param('name') ?? '';
+	if (name.toLowerCase() === 'general') fail(400, 'General is the default category and can’t be deleted.');
+	const db = c.env.DB;
+	const [res] = await db.batch([
+		db.prepare(`DELETE FROM categories WHERE name = ?`).bind(name),
+		db.prepare(`INSERT OR IGNORE INTO categories (name) VALUES ('General')`),
+		db.prepare(`UPDATE articles SET category = 'General' WHERE category = ? COLLATE NOCASE`).bind(name),
+	]);
+	if (!res.meta.changes) fail(404, 'Category not found.');
+	return c.json({ ok: true });
+});
+
 // ---------- team (admin only) ----------
 
 app.get('/users', adminOnly, async (c) => {
 	const { results } = await c.env.DB.prepare(
-		`SELECT id, email, name, role, active, created_at, last_login_at FROM users ORDER BY name COLLATE NOCASE`,
+		`SELECT id, username, name, role, active, created_at, last_login_at FROM users ORDER BY name COLLATE NOCASE`,
 	).all();
 	return c.json(results);
 });
@@ -538,12 +655,12 @@ function role(v: unknown): Role {
 
 app.post('/users', adminOnly, async (c) => {
 	const b = await body(c);
-	const f = { name: str(b.name, 'Name', { required: true }), email: email(b.email), role: role(b.role) };
+	const f = { name: str(b.name, 'Name', { required: true }), username: username(b.username), role: role(b.role) };
 	const hash = await hashPassword(password(b.password));
-	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE email = ?`).bind(f.email).first())
-		fail(409, 'Someone with that email already has an account.');
-	const res = await c.env.DB.prepare(`INSERT INTO users (email, name, role, password_hash) VALUES (?, ?, ?, ?)`)
-		.bind(f.email, f.name, f.role, hash)
+	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE username = ?`).bind(f.username).first())
+		fail(409, 'That username is already taken.');
+	const res = await c.env.DB.prepare(`INSERT INTO users (username, name, role, password_hash) VALUES (?, ?, ?, ?)`)
+		.bind(f.username, f.name, f.role, hash)
 		.run();
 	return c.json({ id: res.meta.last_row_id }, 201);
 });
@@ -555,12 +672,12 @@ async function otherActiveAdmins(db: D1Database, id: number) {
 app.put('/users/:id', adminOnly, async (c) => {
 	const id = idParam(c);
 	const b = await body(c);
-	const f = { name: str(b.name, 'Name', { required: true }), email: email(b.email), role: role(b.role), active: b.active === false ? 0 : 1 };
+	const f = { name: str(b.name, 'Name', { required: true }), username: username(b.username), role: role(b.role), active: b.active === false ? 0 : 1 };
 	if ((f.role !== 'admin' || !f.active) && (await otherActiveAdmins(c.env.DB, id)) === 0)
 		fail(400, 'There must always be at least one active admin.');
-	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE email = ? AND id != ?`).bind(f.email, id).first())
-		fail(409, 'Someone else already uses that email.');
-	const stmts = [c.env.DB.prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ? WHERE id = ?`).bind(f.name, f.email, f.role, f.active, id)];
+	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE username = ? AND id != ?`).bind(f.username, id).first())
+		fail(409, 'That username is already taken.');
+	const stmts = [c.env.DB.prepare(`UPDATE users SET name = ?, username = ?, role = ?, active = ? WHERE id = ?`).bind(f.name, f.username, f.role, f.active, id)];
 	if (b.password) stmts.push(c.env.DB.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).bind(await hashPassword(password(b.password)), id));
 	if (b.password || !f.active) stmts.push(c.env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id));
 	const [res] = await c.env.DB.batch(stmts);

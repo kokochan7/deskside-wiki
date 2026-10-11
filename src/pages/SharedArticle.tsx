@@ -5,7 +5,7 @@ import { BrandMark, useBranding } from '../branding';
 import { fullDate } from '../format';
 import { Badge, Card, Markdown, Spinner } from '../components/ui';
 
-type Shared = { title: string; body: string; category: string; tags: string; updated_at: string; client_name: string | null };
+type Shared = { title: string; body: string; category: string; tags: string; updated_at: string; clients: { id: number; name: string }[] };
 
 // Read-only page for an article opened from a share link. Works without an account.
 export function SharedArticle({ token }: { token: string }) {
@@ -43,12 +43,12 @@ export function SharedArticle({ token }: { token: string }) {
 					<>
 						<div className="mb-2 flex flex-wrap items-center gap-2">
 							<Badge>{article.category}</Badge>
-							{article.client_name && (
-								<Badge tone="brand">
+							{article.clients.map((c) => (
+								<Badge key={c.id} tone="brand">
 									<Building2 className="mr-1 size-3" />
-									{article.client_name}
+									{c.name}
 								</Badge>
-							)}
+							))}
 						</div>
 						<h1 className="text-3xl font-semibold tracking-tight">{article.title}</h1>
 						<p className="mt-3 text-sm text-zinc-500">Updated {fullDate(article.updated_at)}</p>

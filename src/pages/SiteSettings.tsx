@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { api, type Accent } from '../api';
 import { ACCENTS, applyBranding, LogoPicker, useBranding } from '../branding';
 import { Button, Card, ErrorNote, Field, Input, PageHeader, cx, useFeedback } from '../components/ui';
+import { CategorySettings } from './CategorySettings';
 
 export function SiteSettings() {
 	const { settings, reload } = useBranding();
@@ -112,6 +113,9 @@ export function SiteSettings() {
 					Save settings
 				</Button>
 			</form>
+			<div className="mt-10">
+				<CategorySettings />
+			</div>
 		</div>
 	);
 }

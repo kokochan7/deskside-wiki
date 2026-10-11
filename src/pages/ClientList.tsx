@@ -45,24 +45,19 @@ export function ClientList() {
 			) : shown.length === 0 ? (
 				<p className="py-10 text-center text-sm text-zinc-500">No clients match “{q}”.</p>
 			) : (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
 					{shown.map((c) => (
-						<a key={c.id} href={`#/clients/${c.id}`}>
-							<Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500/50">
-								<div className="flex items-center gap-3">
-									<ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} />
-									<div className="min-w-0">
-										<div className="truncate font-medium">{c.name}</div>
-										<div className="truncate text-xs text-zinc-500">{c.website || c.email || c.phone || 'No details yet'}</div>
-									</div>
-								</div>
-								<div className="mt-4 text-xs text-zinc-500">
-									<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.article_count}</b> {c.article_count === 1 ? 'article' : 'articles'}
-								</div>
-							</Card>
+						<a key={c.id} href={`#/clients/${c.id}`} className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+							<ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} size="sm" />
+							<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{c.name}</span>
+							<span className="hidden w-48 truncate text-xs text-zinc-500 md:inline">{c.website}</span>
+							<span className="hidden w-32 truncate text-xs text-zinc-500 sm:inline">{c.phone}</span>
+							<span className="w-20 shrink-0 text-right text-xs tabular-nums text-zinc-500">
+								{c.article_count} {c.article_count === 1 ? 'article' : 'articles'}
+							</span>
 						</a>
 					))}
-				</div>
+				</Card>
 			)}
 			<ClientForm open={adding} onClose={() => setAdding(false)} onSaved={(id) => navigate(`/clients/${id}`)} />
 		</>

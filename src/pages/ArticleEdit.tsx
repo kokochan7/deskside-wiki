@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, ImagePlus, Italic, Loader2, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table } from 'lucide-react';
+import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, ImagePlus, Italic, Loader2, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table, X } from 'lucide-react';
 import { api, type Article, type Client } from '../api';
 import { navigate, query } from '../router';
 import { altText, uploadImage } from '../images';
@@ -12,12 +12,14 @@ const TEMPLATES: Record<string, string> = {
 	'Client setup notes': `## Environment\n\n| Item | Details |\n| --- | --- |\n| Internet provider | |\n| Firewall | |\n| Wi-Fi SSIDs | |\n| Servers | |\n| Backups | |\n\n## Access\n\nWhere credentials are stored (never paste passwords here).\n\n## Notes\n\n- \n`,
 };
 
-type Form = { title: string; body: string; category: string; tags: string; client_id: string };
+type Form = { title: string; body: string; category: string; tags: string; client_ids: number[] };
 
 export function ArticleEdit({ id }: { id?: number }) {
 	const { toast } = useFeedback();
 	const copyFrom = id ? null : query().get('copy');
-	const [form, setForm] = useState<Form | null>(id || copyFrom ? null : { title: '', body: '', category: '', tags: '', client_id: query().get('client') ?? '' });
+	const [form, setForm] = useState<Form | null>(
+		id || copyFrom ? null : { title: '', body: '', category: 'General', tags: '', client_ids: Number(query().get('client')) > 0 ? [Number(query().get('client'))] : [] },
+	);
 	const [initial, setInitial] = useState<string>('');
 	const [categories, setCategories] = useState<string[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
@@ -38,7 +40,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 			api.get<Article>(`/articles/${id ?? copyFrom}`)
 				.then((a) => {
 					// Copying keeps every field so technicians only change what differs.
-					const f = { title: id ? a.title : `${a.title} (copy)`, body: a.body, category: a.category, tags: a.tags, client_id: a.client_id ? String(a.client_id) : '' };
+					const f = { title: id ? a.title : `${a.title} (copy)`, body: a.body, category: a.category, tags: a.tags, client_ids: a.clients.map((c) => c.id) };
 					setForm(f);
 					setInitial(JSON.stringify(f));
 				})
@@ -82,7 +84,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 		setBusy(true);
 		setError(null);
 		try {
-			const payload = { ...form, client_id: form.client_id ? Number(form.client_id) : null };
+			const payload = form;
 			const res = id ? await api.put(`/articles/${id}`, payload) : await api.post('/articles', payload);
 			setInitial(JSON.stringify(form));
 			toast(id ? 'Changes saved' : 'Article created');
@@ -195,27 +197,48 @@ export function ArticleEdit({ id }: { id?: number }) {
 					</Button>
 				</div>
 			</div>
-			<div className="mb-4 grid gap-3 sm:grid-cols-3">
+			<div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_minmax(0,1fr)_16rem]">
 				<Field label="Category">
-					<Input list="categories" value={form.category} onChange={(e) => set({ category: e.target.value })} placeholder="e.g. Networking" />
-					<datalist id="categories">
-						{['General', 'Networking', 'Microsoft 365', 'Hardware', 'Printers', 'Security', 'Onboarding', ...categories]
-							.filter((v, i, a) => a.indexOf(v) === i)
-							.map((c) => (
-								<option key={c} value={c} />
-							))}
-					</datalist>
-				</Field>
-				<Field label="Client">
-					<Select value={form.client_id} onChange={(e) => set({ client_id: e.target.value })}>
-						<option value="">Internal (all clients)</option>
-						{clients.map((c) => (
-							<option key={c.id} value={c.id}>
-								{c.name}
-							</option>
+					<Select value={form.category} onChange={(e) => set({ category: e.target.value })}>
+						{(categories.includes(form.category) ? categories : [form.category, ...categories]).map((c) => (
+							<option key={c}>{c}</option>
 						))}
 					</Select>
 				</Field>
+				<div>
+					<span className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Clients</span>
+					<div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+						{form.client_ids.map((cid) => (
+							<span key={cid} className="inline-flex items-center gap-1 rounded-md bg-brand-50 py-0.5 pl-2 pr-1 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
+								{clients.find((c) => c.id === cid)?.name ?? '…'}
+								<button
+									type="button"
+									onClick={() => set({ client_ids: form.client_ids.filter((x) => x !== cid) })}
+									className="rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/25"
+									aria-label="Remove client"
+								>
+									<X className="size-3" />
+								</button>
+							</span>
+						))}
+						<select
+							value=""
+							onChange={(e) => e.target.value && set({ client_ids: [...form.client_ids, Number(e.target.value)] })}
+							className="min-w-32 flex-1 bg-transparent py-0.5 text-sm text-zinc-500 outline-none"
+							aria-label="Add a client"
+						>
+							<option value="">{form.client_ids.length ? '+ Add another client…' : '+ Add client…'}</option>
+							{clients
+								.filter((c) => !form.client_ids.includes(c.id))
+								.map((c) => (
+									<option key={c.id} value={c.id}>
+										{c.name}
+									</option>
+								))}
+						</select>
+					</div>
+					{!form.client_ids.length && <span className="mt-1 block text-xs text-zinc-500">None selected: the article is internal.</span>}
+				</div>
 				<Field label="Tags" hint="Separate with commas.">
 					<Input value={form.tags} onChange={(e) => set({ tags: e.target.value })} placeholder="vpn, fortinet" />
 				</Field>
@@ -240,7 +263,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 						<Select
 							value=""
 							onChange={(e) => e.target.value && set({ body: TEMPLATES[e.target.value] })}
-							className="ml-1 h-8! w-auto text-xs"
+							className="ml-1 h-8! w-auto! text-xs"
 							aria-label="Start from a template"
 						>
 							<option value="">Start from a template…</option>
