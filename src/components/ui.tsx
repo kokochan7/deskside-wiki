@@ -240,10 +240,12 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 	if (width) node.setAttribute('width', width);
 });
 
-// Text colour and font size from the editor are stored as <span style="…">. Keep just those two, with plain values.
+// Text colour and font size (<span style="…">) and paragraph alignment (<p style="text-align: …">) from the editor.
+// Keep just those, with plain values.
 const STYLE_RULES: Record<string, RegExp> = {
 	color: /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i,
 	'font-size': /^\d{1,3}(\.\d+)?(px|em|rem|%)$/i,
+	'text-align': /^(left|center|right|justify)$/i,
 };
 DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
 	if (data.attrName !== 'style') return;

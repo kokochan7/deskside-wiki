@@ -150,7 +150,7 @@ export function ArticleList() {
 					) : (
 						<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
 							{selectable && (
-								<div className="flex items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
+								<div className="flex min-h-11 items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
 									<input
 										type="checkbox"
 										checked={allSelected}
@@ -158,7 +158,7 @@ export function ArticleList() {
 										className="size-4 accent-brand-600"
 										aria-label="Select all"
 									/>
-									{selected.size ? (
+									{selected.size > 0 && (
 										<>
 											<span className="font-medium text-zinc-700 dark:text-zinc-300">{selected.size} selected</span>
 											<Button size="sm" onClick={() => setBulkEditing('category')} className="ml-auto h-7!">
@@ -173,8 +173,6 @@ export function ArticleList() {
 												</Button>
 											)}
 										</>
-									) : (
-										<span>Select KBs to change {isAdmin ? 'or delete ' : ''}several at once</span>
 									)}
 								</div>
 							)}

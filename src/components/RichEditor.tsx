@@ -5,12 +5,18 @@ import { Markdown } from '@tiptap/markdown';
 import Image from '@tiptap/extension-image';
 import Paragraph from '@tiptap/extension-paragraph';
 import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
+import TextAlign from '@tiptap/extension-text-align';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { Transaction } from '@tiptap/pm/state';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import {
 	AArrowDown,
 	AArrowUp,
+	AlignCenter,
+	AlignLeft,
+	AlignRight,
 	Baseline,
 	Bold,
 	Check,
@@ -68,7 +74,9 @@ export function RichEditor({
 			StyledText,
 			Color,
 			FontSize,
-			Markdown,
+			TextAlign.configure({ types: ['paragraph'], alignments: ['left', 'center', 'right'] }),
+			// breaks: a single line break is a new row, as in the reader (older KBs were typed that way).
+			Markdown.configure({ markedOptions: { gfm: true, breaks: true } }),
 			ResizableImage,
 			TaskList,
 			TaskItem.configure({ nested: true }),
@@ -158,8 +166,8 @@ const ResizableImage = Image.extend({
 	resize: { enabled: true, directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'], minWidth: 60, minHeight: 30, alwaysPreserveAspectRatio: true },
 });
 
-// Indented paragraphs. Markdown has no indent, so an indented paragraph is saved as <p data-indent="2">…</p>,
-// which the reader shows as is (the margins are in index.css).
+// Indented and aligned paragraphs. Markdown has neither, so such a paragraph is saved as
+// <p data-indent="2" style="text-align: center">…</p>, which the reader shows as is (indent margins are in index.css).
 const MAX_INDENT = 6;
 const IndentParagraph = Paragraph.extend({
 	addAttributes() {
@@ -172,9 +180,11 @@ const IndentParagraph = Paragraph.extend({
 		};
 	},
 	renderMarkdown(node, h, ctx) {
-		const indent = node.attrs?.indent;
-		if (!indent) return this.parent?.(node, h, ctx) ?? '';
-		return `<p data-indent="${indent}">${inlineHtml(h.renderChildren(node.content ?? []))}</p>`;
+		const { indent, textAlign } = node.attrs ?? {};
+		const align = textAlign && textAlign !== 'left' ? textAlign : null;
+		if (!indent && !align) return this.parent?.(node, h, ctx) ?? '';
+		const attrs = [indent && ` data-indent="${indent}"`, align && ` style="text-align: ${align}"`].filter(Boolean).join('');
+		return `<p${attrs}>${inlineHtml(h.renderChildren(node.content ?? []))}</p>`;
 	},
 });
 
@@ -212,6 +222,8 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 		selector: ({ editor: e }) => ({
 			fontSize: (e.getAttributes('textStyle').fontSize as string | undefined) ?? '',
 			color: (e.getAttributes('textStyle').color as string | undefined) ?? '',
+			align: (e.getAttributes('paragraph').textAlign as string | null) ?? 'left',
+			canAlign: rowParagraphs(e.state.selection).length > 0,
 			canIndent: canIndent(e, 1),
 			canOutdent: canIndent(e, -1),
 			bold: e.isActive('bold'),
@@ -252,6 +264,9 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 		{ icon: List, label: 'Bulleted list', run: () => chain().toggleBulletList().run(), active: s.bullet },
 		{ icon: ListOrdered, label: 'Numbered list', run: () => chain().toggleOrderedList().run(), active: s.ordered },
 		{ icon: ListChecks, label: 'Checklist', run: () => chain().toggleTaskList().run(), active: s.task },
+		{ icon: AlignLeft, label: 'Align left', run: () => align(editor, 'left'), active: s.canAlign && s.align === 'left', disabled: !s.canAlign },
+		{ icon: AlignCenter, label: 'Center', run: () => align(editor, 'center'), active: s.align === 'center', disabled: !s.canAlign },
+		{ icon: AlignRight, label: 'Align right', run: () => align(editor, 'right'), active: s.align === 'right', disabled: !s.canAlign },
 		{ icon: IndentDecrease, label: 'Decrease indent', run: () => indent(editor, -1), disabled: !s.canOutdent },
 		{ icon: IndentIncrease, label: 'Increase indent', run: () => indent(editor, 1), disabled: !s.canIndent },
 		{ icon: Quote, label: 'Quote', run: () => chain().toggleBlockquote().run(), active: s.quote },
@@ -298,35 +313,63 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 	);
 }
 
-// Increase / decrease indent: list items nest under the one above; other paragraphs shift right.
+// Indent and alignment change whole paragraphs. A paragraph can hold several rows (line breaks), so the rows the
+// selection touches are first split off into their own paragraph: only what was selected changes.
 function listItemType(e: Editor) {
 	return e.isActive('taskItem') ? 'taskItem' : e.isActive('listItem') ? 'listItem' : null;
 }
-function indentableParagraphs(e: Editor) {
-	const { from, to } = e.state.selection;
-	const found: { pos: number; indent: number }[] = [];
-	e.state.doc.nodesBetween(from, to, (node, pos, parent) => {
-		if (node.type.name === 'paragraph' && parent?.type.name === 'doc') found.push({ pos, indent: node.attrs.indent ?? 0 });
-		return node.type.name === 'doc' || node.type.name === 'paragraph';
+// Top-level paragraphs in the selection (not list items, quotes or table cells).
+function rowParagraphs(selection: Transaction['selection']) {
+	const found: { pos: number; node: ProseMirrorNode }[] = [];
+	selection.$from.doc.nodesBetween(selection.from, selection.to, (node, pos, parent) => {
+		if (node.type.name === 'paragraph' && parent?.type.name === 'doc') found.push({ pos, node });
+		return node.type.name === 'doc';
 	});
 	return found;
+}
+function splitOffSelectedRows(tr: Transaction) {
+	const { $from, $to } = tr.selection;
+	const cuts: number[] = [];
+	if ($from.parent.type.name === 'paragraph' && $from.depth === 1) {
+		let cut: number | null = null;
+		$from.parent.forEach((child, offset) => {
+			if (child.type.name === 'hardBreak' && offset < $from.parentOffset) cut = $from.start() + offset;
+		});
+		if (cut !== null) cuts.push(cut);
+	}
+	if ($to.parent.type.name === 'paragraph' && $to.depth === 1) {
+		let cut: number | null = null;
+		$to.parent.forEach((child, offset) => {
+			if (cut === null && child.type.name === 'hardBreak' && offset >= $to.parentOffset) cut = $to.start() + offset;
+		});
+		if (cut !== null) cuts.push(cut);
+	}
+	// Last first, so earlier positions stay valid. The break itself becomes the paragraph boundary.
+	for (const pos of cuts.sort((x, y) => y - x)) tr.delete(pos, pos + 1).split(pos);
+}
+function updateRows(e: Editor, attrs: (node: ProseMirrorNode) => Record<string, unknown>) {
+	e.chain()
+		.focus()
+		.command(({ tr }) => {
+			splitOffSelectedRows(tr);
+			const rows = rowParagraphs(tr.selection);
+			for (const { pos, node } of rows) tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs(node) });
+			return rows.length > 0;
+		})
+		.run();
 }
 function canIndent(e: Editor, dir: 1 | -1) {
 	const item = listItemType(e);
 	if (item) return dir > 0 ? e.can().sinkListItem(item) : e.can().liftListItem(item);
-	return indentableParagraphs(e).some((p) => (dir > 0 ? p.indent < MAX_INDENT : p.indent > 0));
+	return rowParagraphs(e.state.selection).some(({ node }) => (dir > 0 ? node.attrs.indent < MAX_INDENT : node.attrs.indent > 0));
 }
 function indent(e: Editor, dir: 1 | -1) {
 	const item = listItemType(e);
 	if (item) return dir > 0 ? e.chain().focus().sinkListItem(item).run() : e.chain().focus().liftListItem(item).run();
-	const paragraphs = indentableParagraphs(e);
-	e.chain()
-		.focus()
-		.command(({ tr }) => {
-			for (const p of paragraphs) tr.setNodeAttribute(p.pos, 'indent', Math.min(MAX_INDENT, Math.max(0, p.indent + dir)));
-			return paragraphs.length > 0;
-		})
-		.run();
+	updateRows(e, (node) => ({ indent: Math.min(MAX_INDENT, Math.max(0, (node.attrs.indent ?? 0) + dir)) }));
+}
+function align(e: Editor, to: 'left' | 'center' | 'right') {
+	updateRows(e, () => ({ textAlign: to === 'left' ? null : to }));
 }
 
 function FontSizeSelect({ value, onChange }: { value: string; onChange: (px: number | null) => void }) {
