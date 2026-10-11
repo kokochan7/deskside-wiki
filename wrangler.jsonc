@@ -1,0 +1,12 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "deskside-wiki",
+	"compatibility_date": "2026-10-01",
+	// Build the static site before every `wrangler deploy`.
+	"build": { "command": "npm run build" },
+	// Serve the built site as static assets (no Worker script needed).
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page"
+	}
+}

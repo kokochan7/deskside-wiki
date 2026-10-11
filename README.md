@@ -16,15 +16,14 @@ Add a Markdown (`.md`) or MDX (`.mdx`) file under `src/content/docs/<section>/`.
 
 Text in **[square brackets]** is placeholder content to replace with company specifics.
 
-## Deploying to Cloudflare Pages
+## Deploying to Cloudflare
 
-1. Push this folder to a GitHub repository.
-2. In Cloudflare, go to **Workers & Pages → Create → Pages → Connect to Git** and pick the repo.
-3. Build settings:
-   - Framework preset: **Astro**
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-   - Environment variable: `NODE_VERSION` = `22`
-4. Save and deploy. Every push to the main branch redeploys automatically.
+The site deploys as a Cloudflare Worker with static assets (`wrangler.jsonc`).
+
+1. In Cloudflare, go to **Workers & Pages → Create → Import a repository** and pick this repo.
+2. Leave the build command empty and the deploy command as `npx wrangler deploy`. Wrangler runs `npm run build` itself, then uploads `dist`.
+3. Every push to `main` redeploys automatically.
+
+To deploy by hand: `npx wrangler deploy`.
 
 Because this is internal documentation, put the site behind **Cloudflare Access** (Zero Trust → Access → Applications → Self-hosted) so only company accounts can view it. `public/_headers` already sets `noindex` so search engines won't list it.
