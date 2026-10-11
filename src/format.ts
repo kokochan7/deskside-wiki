@@ -23,7 +23,7 @@ export const fullDate = (s: string | null | undefined) =>
 
 export const initials = (name: string) =>
 	name
-		.split(/\s+/)
+		.split(/[\s._-]+/)
 		.filter(Boolean)
 		.slice(0, 2)
 		.map((w) => w[0]!.toUpperCase())

@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'technician' | 'viewer';
-export type User = { id: number; username: string; name: string; role: Role; guest?: boolean };
+export type User = { id: number; username: string; role: Role; guest?: boolean };
 export type TeamMember = User & { active: number; created_at: string; last_login_at: string | null };
 export type ArticleSummary = {
 	id: number;

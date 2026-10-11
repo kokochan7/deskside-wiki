@@ -25,7 +25,7 @@ export function Dashboard() {
 
 	return (
 		<>
-			<PageHeader title={user.guest ? greeting : `${greeting}, ${user.name.split(' ')[0]}`} />
+			<PageHeader title={user.guest ? greeting : `${greeting}, ${user.username}`} />
 			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 				{stats.map((s) => {
 					const inner = (

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Building2, ExternalLink, FilePlus2, Layers, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Building2, ExternalLink, FilePlus2, Layers, PencilLine, Search, Trash2 } from 'lucide-react';
 import { api, imageUrl, type ArticleSummary, type Client, type Overview } from '../api';
 import { ClientLogo } from '../branding';
 import { timeAgo } from '../format';
 import { navigate, query } from '../router';
 import { canEdit, useUser } from '../session';
-import { Badge, Button, Card, Empty, Input, PageHeader, Select, Spinner, cx, useFeedback } from '../components/ui';
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx, useFeedback } from '../components/ui';
+import { ClientPicker } from '../components/ClientPicker';
 
 export function ArticleList() {
 	const user = useUser();
@@ -20,6 +21,8 @@ export function ArticleList() {
 	const [selected, setSelected] = useState<Set<number>>(new Set());
 	const [reload, setReload] = useState(0);
 	const isAdmin = user.role === 'admin';
+	const selectable = canEdit(user);
+	const [bulkEditing, setBulkEditing] = useState(false);
 	const { confirm, toast } = useFeedback();
 
 	useEffect(() => {
@@ -146,7 +149,7 @@ export function ArticleList() {
 						</Empty>
 					) : (
 						<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
-							{isAdmin && (
+							{selectable && (
 								<div className="flex items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
 									<input
 										type="checkbox"
@@ -158,18 +161,23 @@ export function ArticleList() {
 									{selected.size ? (
 										<>
 											<span className="font-medium text-zinc-700 dark:text-zinc-300">{selected.size} selected</span>
-											<Button size="sm" variant="danger" onClick={deleteSelected} className="ml-auto h-7!">
-												<Trash2 className="size-3.5" /> Delete selected
+											<Button size="sm" onClick={() => setBulkEditing(true)} className="ml-auto h-7!">
+												<PencilLine className="size-3.5" /> Change category or clients
 											</Button>
+											{isAdmin && (
+												<Button size="sm" variant="danger" onClick={deleteSelected} className="h-7!">
+													<Trash2 className="size-3.5" /> Delete
+												</Button>
+											)}
 										</>
 									) : (
-										<span>Select articles to delete several at once</span>
+										<span>Select articles to change {isAdmin ? 'or delete ' : ''}several at once</span>
 									)}
 								</div>
 							)}
 							{articles.map((a) => (
 								<div key={a.id} className={cx('group flex items-center text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40', selected.has(a.id) && 'bg-brand-50/60 dark:bg-brand-500/10')}>
-									{isAdmin && (
+									{selectable && (
 										<input
 											type="checkbox"
 											checked={selected.has(a.id)}
@@ -199,6 +207,99 @@ export function ArticleList() {
 					)}
 				</section>
 			</div>
+			<BulkEdit
+				open={bulkEditing}
+				ids={[...selected]}
+				categories={categories}
+				clients={clients}
+				onClose={() => setBulkEditing(false)}
+				onDone={() => {
+					setBulkEditing(false);
+					setReload((r) => r + 1);
+				}}
+			/>
 		</>
+	);
+}
+
+
+type ClientMode = '' | 'add' | 'remove' | 'set';
+
+function BulkEdit({ open, ids, categories, clients, onClose, onDone }: { open: boolean; ids: number[]; categories: string[]; clients: Client[]; onClose: () => void; onDone: () => void }) {
+	const { toast } = useFeedback();
+	const [category, setCategory] = useState('');
+	const [mode, setMode] = useState<ClientMode>('');
+	const [clientIds, setClientIds] = useState<number[]>([]);
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		if (!open) return;
+		setCategory('');
+		setMode('');
+		setClientIds([]);
+		setError(null);
+		setBusy(false);
+	}, [open]);
+
+	const save = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setBusy(true);
+		setError(null);
+		try {
+			await api.post('/articles/bulk-update', { ids, category: category || undefined, clients: mode ? { mode, ids: clientIds } : undefined });
+			toast(`${ids.length} article${ids.length === 1 ? '' : 's'} updated`);
+			onDone();
+		} catch (err) {
+			setError((err as Error).message);
+			setBusy(false);
+		}
+	};
+	const modes: [ClientMode, string][] = [
+		['', "Don't change"],
+		['add', 'Add clients'],
+		['remove', 'Remove clients'],
+		['set', 'Replace with'],
+	];
+	const nothing = !category && !mode;
+
+	return (
+		<Modal open={open} onClose={onClose} title={`Change ${ids.length} article${ids.length === 1 ? '' : 's'}`}>
+			<form onSubmit={save} className="space-y-5">
+				<Field label="Category">
+					<Select value={category} onChange={(e) => setCategory(e.target.value)}>
+						<option value="">Don't change</option>
+						{categories.map((c) => (
+							<option key={c}>{c}</option>
+						))}
+					</Select>
+				</Field>
+				<div>
+					<span className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Clients</span>
+					<div className="mb-2 flex flex-wrap gap-1 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800">
+						{modes.map(([m, label]) => (
+							<button
+								key={m}
+								type="button"
+								onClick={() => setMode(m)}
+								className={cx('flex-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap', mode === m ? 'bg-white shadow-xs dark:bg-zinc-900' : 'text-zinc-500')}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+					{mode && <ClientPicker clients={clients} value={clientIds} onChange={setClientIds} placeholder={mode === 'set' ? 'No clients (make them internal)' : 'Select clients…'} />}
+					{mode === 'set' && <p className="mt-1 text-xs text-zinc-500">Their current clients are replaced with exactly these.</p>}
+				</div>
+				<ErrorNote error={error} />
+				<div className="flex justify-end gap-2">
+					<Button type="button" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button variant="primary" loading={busy} disabled={nothing || ((mode === 'add' || mode === 'remove') && !clientIds.length)}>
+						Apply to {ids.length}
+					</Button>
+				</div>
+			</form>
+		</Modal>
 	);
 }

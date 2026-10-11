@@ -5,7 +5,7 @@ import { ensureSchema } from './schema';
 import { hashPassword, verifyPassword, newSessionToken, hashToken } from './auth';
 
 type Role = 'admin' | 'technician' | 'viewer';
-type User = { id: number; username: string; name: string; role: Role; guest?: boolean };
+type User = { id: number; username: string; role: Role; guest?: boolean };
 type Env = { Bindings: { DB: D1Database; ASSETS: Fetcher }; Variables: { user: User } };
 
 const SESSION_COOKIE = 'kb_session';
@@ -56,7 +56,7 @@ function username(v: unknown): string {
 
 function password(v: unknown): string {
 	const s = typeof v === 'string' ? v : '';
-	if (s.length < 10) fail(400, 'Password must be at least 10 characters.');
+	if (!s) fail(400, 'Enter a password.');
 	if (s.length > 200) fail(400, 'Password is too long.');
 	return s;
 }
@@ -88,14 +88,14 @@ async function startSession(c: Context<Env>, userId: number) {
 	});
 }
 
-const GUEST: User = { id: 0, username: '', name: 'Guest', role: 'viewer', guest: true };
+const GUEST: User = { id: 0, username: 'guest', role: 'viewer', guest: true };
 
 // Signed-in users get their own account. When public viewing is on, anyone else can read (GET) as a guest viewer.
 const requireUser = async (c: Context<Env>, next: Next) => {
 	const token = getCookie(c, SESSION_COOKIE);
 	const user = token
 		? await c.env.DB.prepare(
-				`SELECT u.id, u.username, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+				`SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id
 				 WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`,
 			)
 				.bind(await hashToken(token))
@@ -126,14 +126,13 @@ app.get('/setup', async (c) => c.json({ needsSetup: (await userCount(c.env.DB)) 
 // Creates the first admin. Only works while there are no users at all.
 app.post('/setup', async (c) => {
 	const b = await body(c);
-	const name = str(b.name, 'Name', { required: true });
 	const login = username(b.username);
 	const hash = await hashPassword(password(b.password));
 	const res = await c.env.DB.prepare(
 		`INSERT INTO users (username, name, role, password_hash)
 		 SELECT ?, ?, 'admin', ? WHERE NOT EXISTS (SELECT 1 FROM users)`,
 	)
-		.bind(login, name, hash)
+		.bind(login, login, hash)
 		.run();
 	if (!res.meta.changes) fail(409, 'Setup has already been completed. Please sign in.');
 	await startSession(c, res.meta.last_row_id);
@@ -288,7 +287,7 @@ app.get('/overview', async (c) => {
 			        (SELECT COUNT(*) FROM articles WHERE updated_at >= datetime('now', '-30 days')) AS updated_30d`,
 		),
 		db.prepare(
-			`SELECT a.id, a.title, a.category, a.updated_at, ${CLIENTS_OF('a')} AS clients, u.name AS updated_by_name
+			`SELECT a.id, a.title, a.category, a.updated_at, ${CLIENTS_OF('a')} AS clients, u.username AS updated_by_name
 			 FROM articles a LEFT JOIN users u ON u.id = a.updated_by
 			 ORDER BY a.updated_at DESC LIMIT 8`,
 		),
@@ -350,7 +349,7 @@ app.get('/articles', async (c) => {
 		args.push(Number(client));
 	}
 	const sql = `SELECT a.id, a.title, a.category, a.tags, a.updated_at, ${snippet} AS snippet,
-		${CLIENTS_OF('a')} AS clients, u.name AS updated_by_name
+		${CLIENTS_OF('a')} AS clients, u.username AS updated_by_name
 		FROM ${from} LEFT JOIN users u ON u.id = a.updated_by
 		${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${order} LIMIT 200`;
 	const { results } = await c.env.DB.prepare(sql).bind(...args).all<{ clients: string }>();
@@ -358,13 +357,13 @@ app.get('/articles', async (c) => {
 });
 
 app.get('/categories', async (c) => {
-	const { results } = await c.env.DB.prepare(`SELECT name FROM categories ORDER BY name COLLATE NOCASE`).all<{ name: string }>();
+	const { results } = await c.env.DB.prepare(`SELECT name FROM categories ORDER BY position, name COLLATE NOCASE`).all<{ name: string }>();
 	return c.json(results.map((r) => r.name));
 });
 
 app.get('/articles/:id', async (c) => {
 	const row = await c.env.DB.prepare(
-		`SELECT a.*, ${CLIENTS_OF('a')} AS clients, cu.name AS created_by_name, uu.name AS updated_by_name
+		`SELECT a.*, ${CLIENTS_OF('a')} AS clients, cu.username AS created_by_name, uu.username AS updated_by_name
 		 FROM articles a LEFT JOIN users cu ON cu.id = a.created_by LEFT JOIN users uu ON uu.id = a.updated_by WHERE a.id = ?`,
 	)
 		.bind(idParam(c))
@@ -381,8 +380,8 @@ async function articleFields(c: Context<Env>) {
 	const clientIds = [...new Set((Array.isArray(b.client_ids) ? b.client_ids : []).map(Number))];
 	if (clientIds.some((id) => !Number.isInteger(id) || id <= 0)) fail(400, 'Invalid client.');
 	if (clientIds.length) {
-		const found = await db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE id IN (${clientIds.map(() => '?').join(',')})`)
-			.bind(...clientIds)
+		const found = await db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE id IN (SELECT value FROM json_each(?))`)
+			.bind(JSON.stringify(clientIds))
 			.first<{ n: number }>();
 		if (found!.n !== clientIds.length) fail(400, 'One of those clients no longer exists.');
 	}
@@ -439,10 +438,10 @@ app.put('/articles/:id', canEdit, async (c) => {
 });
 
 const deleteArticles = (db: D1Database, ids: number[]) => {
-	const marks = ids.map(() => '?').join(',');
+	const idList = JSON.stringify(ids);
 	return db.batch([
-		db.prepare(`DELETE FROM articles WHERE id IN (${marks}) RETURNING id`).bind(...ids),
-		db.prepare(`DELETE FROM article_clients WHERE article_id IN (${marks})`).bind(...ids),
+		db.prepare(`DELETE FROM articles WHERE id IN (SELECT value FROM json_each(?)) RETURNING id`).bind(idList),
+		db.prepare(`DELETE FROM article_clients WHERE article_id IN (SELECT value FROM json_each(?))`).bind(idList),
 	]);
 };
 
@@ -450,6 +449,56 @@ app.delete('/articles/:id', adminOnly, async (c) => {
 	const [res] = await deleteArticles(c.env.DB, [idParam(c)]);
 	if (!res.results.length) fail(404, 'Article not found.');
 	return c.json({ ok: true });
+});
+
+// Change the category and/or clients of several articles at once.
+app.post('/articles/bulk-update', canEdit, async (c) => {
+	const b = await body(c);
+	const db = c.env.DB;
+	const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(Number))].filter((id) => Number.isInteger(id) && id > 0);
+	if (!ids.length) fail(400, 'Select at least one article.');
+	if (ids.length > 200) fail(400, 'Change at most 200 articles at a time.');
+	// json_each keeps every query to one bound parameter however many articles are selected (D1 allows 100).
+	const idList = JSON.stringify(ids);
+	const stmts: D1PreparedStatement[] = [];
+
+	if (b.category != null && b.category !== '') {
+		const category = await db.prepare(`SELECT name FROM categories WHERE name = ?`).bind(String(b.category)).first<{ name: string }>();
+		if (!category) fail(400, 'Choose a category from the list.');
+		stmts.push(db.prepare(`UPDATE articles SET category = ? WHERE id IN (SELECT value FROM json_each(?))`).bind(category!.name, idList));
+	}
+
+	const clients = b.clients as { mode?: string; ids?: unknown } | undefined;
+	if (clients && clients.mode) {
+		if (!['add', 'remove', 'set'].includes(clients.mode)) fail(400, 'Invalid client change.');
+		const clientIds = [...new Set((Array.isArray(clients.ids) ? clients.ids : []).map(Number))];
+		if (clientIds.some((id) => !Number.isInteger(id) || id <= 0)) fail(400, 'Invalid client.');
+		if (clients.mode !== 'set' && !clientIds.length) fail(400, 'Pick at least one client.');
+		if (clientIds.length) {
+			const found = await db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE id IN (SELECT value FROM json_each(?))`)
+				.bind(JSON.stringify(clientIds))
+				.first<{ n: number }>();
+			if (found!.n !== clientIds.length) fail(400, 'One of those clients no longer exists.');
+		}
+		if (clients.mode === 'set') stmts.push(db.prepare(`DELETE FROM article_clients WHERE article_id IN (SELECT value FROM json_each(?))`).bind(idList));
+		if (clients.mode === 'remove')
+			stmts.push(
+				db.prepare(`DELETE FROM article_clients WHERE article_id IN (SELECT value FROM json_each(?)) AND client_id IN (SELECT value FROM json_each(?))`).bind(
+					idList,
+					JSON.stringify(clientIds),
+				),
+			);
+		else
+			for (const cid of clientIds)
+				stmts.push(
+					db.prepare(`INSERT OR IGNORE INTO article_clients (article_id, client_id) SELECT id, ? FROM articles WHERE id IN (SELECT value FROM json_each(?))`).bind(cid, idList),
+				);
+	}
+
+	if (!stmts.length) fail(400, 'Nothing to change.');
+	stmts.push(db.prepare(`UPDATE articles SET updated_by = ?, updated_at = datetime('now') WHERE id IN (SELECT value FROM json_each(?))`).bind(c.get('user').id, idList));
+	await db.batch(stmts);
+	return c.json({ updated: ids.length });
 });
 
 // Delete several articles at once (admins only).
@@ -595,7 +644,7 @@ app.put('/settings', adminOnly, async (c) => {
 
 app.get('/categories/usage', adminOnly, async (c) => {
 	const { results } = await c.env.DB.prepare(
-		`SELECT k.name, (SELECT COUNT(*) FROM articles a WHERE a.category = k.name) AS count FROM categories k ORDER BY k.name COLLATE NOCASE`,
+		`SELECT k.name, (SELECT COUNT(*) FROM articles a WHERE a.category = k.name) AS count FROM categories k ORDER BY k.position, k.name COLLATE NOCASE`,
 	).all();
 	return c.json(results);
 });
@@ -604,9 +653,26 @@ const categoryName = (v: unknown) => str(v, 'Category name', { required: true, m
 
 app.post('/categories', adminOnly, async (c) => {
 	const name = categoryName((await body(c)).name);
-	const res = await c.env.DB.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`).bind(name).run();
+	const res = await c.env.DB.prepare(
+		`INSERT OR IGNORE INTO categories (name, position) VALUES (?, (SELECT COALESCE(MAX(position), -1) + 1 FROM categories))`,
+	)
+		.bind(name)
+		.run();
 	if (!res.meta.changes) fail(409, 'That category already exists.');
 	return c.json({ ok: true }, 201);
+});
+
+// Save the order categories are listed in. Takes every category name, top to bottom.
+app.put('/categories-order', adminOnly, async (c) => {
+	const b = await body(c);
+	const names = Array.isArray(b.names) ? b.names.map(String) : [];
+	const db = c.env.DB;
+	const { results } = await db.prepare(`SELECT name FROM categories`).all<{ name: string }>();
+	const known = new Set(results.map((r) => r.name.toLowerCase()));
+	if (names.length !== known.size || new Set(names.map((n) => n.toLowerCase())).size !== names.length || names.some((n) => !known.has(n.toLowerCase())))
+		fail(409, 'The categories changed while you were editing. Reload the page and try again.');
+	await db.batch(names.map((n, i) => db.prepare(`UPDATE categories SET position = ? WHERE name = ?`).bind(i, n)));
+	return c.json({ ok: true });
 });
 
 // Rename a category; its articles move with it.
@@ -643,7 +709,7 @@ app.delete('/categories/:name', adminOnly, async (c) => {
 
 app.get('/users', adminOnly, async (c) => {
 	const { results } = await c.env.DB.prepare(
-		`SELECT id, username, name, role, active, created_at, last_login_at FROM users ORDER BY name COLLATE NOCASE`,
+		`SELECT id, username, role, active, created_at, last_login_at FROM users ORDER BY username`,
 	).all();
 	return c.json(results);
 });
@@ -655,12 +721,12 @@ function role(v: unknown): Role {
 
 app.post('/users', adminOnly, async (c) => {
 	const b = await body(c);
-	const f = { name: str(b.name, 'Name', { required: true }), username: username(b.username), role: role(b.role) };
+	const f = { username: username(b.username), role: role(b.role) };
 	const hash = await hashPassword(password(b.password));
 	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE username = ?`).bind(f.username).first())
 		fail(409, 'That username is already taken.');
 	const res = await c.env.DB.prepare(`INSERT INTO users (username, name, role, password_hash) VALUES (?, ?, ?, ?)`)
-		.bind(f.username, f.name, f.role, hash)
+		.bind(f.username, f.username, f.role, hash)
 		.run();
 	return c.json({ id: res.meta.last_row_id }, 201);
 });
@@ -672,12 +738,12 @@ async function otherActiveAdmins(db: D1Database, id: number) {
 app.put('/users/:id', adminOnly, async (c) => {
 	const id = idParam(c);
 	const b = await body(c);
-	const f = { name: str(b.name, 'Name', { required: true }), username: username(b.username), role: role(b.role), active: b.active === false ? 0 : 1 };
+	const f = { username: username(b.username), role: role(b.role), active: b.active === false ? 0 : 1 };
 	if ((f.role !== 'admin' || !f.active) && (await otherActiveAdmins(c.env.DB, id)) === 0)
 		fail(400, 'There must always be at least one active admin.');
 	if (await c.env.DB.prepare(`SELECT 1 FROM users WHERE username = ? AND id != ?`).bind(f.username, id).first())
 		fail(409, 'That username is already taken.');
-	const stmts = [c.env.DB.prepare(`UPDATE users SET name = ?, username = ?, role = ?, active = ? WHERE id = ?`).bind(f.name, f.username, f.role, f.active, id)];
+	const stmts = [c.env.DB.prepare(`UPDATE users SET name = ?, username = ?, role = ?, active = ? WHERE id = ?`).bind(f.username, f.username, f.role, f.active, id)];
 	if (b.password) stmts.push(c.env.DB.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).bind(await hashPassword(password(b.password)), id));
 	if (b.password || !f.active) stmts.push(c.env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id));
 	const [res] = await c.env.DB.batch(stmts);

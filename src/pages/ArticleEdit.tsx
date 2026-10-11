@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, ImagePlus, Italic, Loader2, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table, X } from 'lucide-react';
+import { ArrowLeft, Bold, Code, Columns2, Eye, Heading2, ImagePlus, Italic, Loader2, Link2, List, ListChecks, ListOrdered, Pencil, Quote, Table } from 'lucide-react';
 import { api, type Article, type Client } from '../api';
 import { navigate, query } from '../router';
 import { altText, uploadImage } from '../images';
+import { ClientPicker } from '../components/ClientPicker';
 import { Button, Card, ErrorNote, Field, Input, Markdown, Select, Spinner, cx, useFeedback } from '../components/ui';
 
 const TEMPLATES: Record<string, string> = {
@@ -207,36 +208,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 				</Field>
 				<div>
 					<span className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Clients</span>
-					<div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
-						{form.client_ids.map((cid) => (
-							<span key={cid} className="inline-flex items-center gap-1 rounded-md bg-brand-50 py-0.5 pl-2 pr-1 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-								{clients.find((c) => c.id === cid)?.name ?? '…'}
-								<button
-									type="button"
-									onClick={() => set({ client_ids: form.client_ids.filter((x) => x !== cid) })}
-									className="rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/25"
-									aria-label="Remove client"
-								>
-									<X className="size-3" />
-								</button>
-							</span>
-						))}
-						<select
-							value=""
-							onChange={(e) => e.target.value && set({ client_ids: [...form.client_ids, Number(e.target.value)] })}
-							className="min-w-32 flex-1 bg-transparent py-0.5 text-sm text-zinc-500 outline-none"
-							aria-label="Add a client"
-						>
-							<option value="">{form.client_ids.length ? '+ Add another client…' : '+ Add client…'}</option>
-							{clients
-								.filter((c) => !form.client_ids.includes(c.id))
-								.map((c) => (
-									<option key={c.id} value={c.id}>
-										{c.name}
-									</option>
-								))}
-						</select>
-					</div>
+					<ClientPicker clients={clients} value={form.client_ids} onChange={(client_ids) => set({ client_ids })} placeholder="Internal (no clients)" />
 					{!form.client_ids.length && <span className="mt-1 block text-xs text-zinc-500">None selected: the article is internal.</span>}
 				</div>
 				<Field label="Tags" hint="Separate with commas.">

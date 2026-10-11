@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
-import { Button, ErrorNote, Field, Input } from '../components/ui';
+import { Button, ErrorNote, Field, Input, PasswordInput } from '../components/ui';
 import { BrandMark, useBranding } from '../branding';
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -51,7 +51,7 @@ export function Login({ onDone, onBrowse }: { onDone: () => void; onBrowse?: () 
 					<Input autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} />
 				</Field>
 				<Field label="Password">
-					<Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+					<PasswordInput autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
 				</Field>
 				<ErrorNote error={error} />
 				<Button variant="primary" className="w-full" loading={busy}>
@@ -69,7 +69,7 @@ export function Login({ onDone, onBrowse }: { onDone: () => void; onBrowse?: () 
 }
 
 export function Setup({ onDone }: { onDone: () => void }) {
-	const [f, setF] = useState({ name: '', username: '', password: '' });
+	const [f, setF] = useState({ username: '', password: '' });
 	const { busy, error, submit } = useSubmit(async () => {
 		await api.post('/setup', f);
 		onDone();
@@ -77,14 +77,11 @@ export function Setup({ onDone }: { onDone: () => void }) {
 	return (
 		<AuthCard title="Set up your knowledge base" subtitle="Create the first admin account. You can invite your team next.">
 			<form onSubmit={submit} className="space-y-4">
-				<Field label="Your name">
-					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-				</Field>
 				<Field label="Username" hint="You'll use this to sign in.">
-					<Input autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
+					<Input autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
 				</Field>
-				<Field label="Password" hint="At least 10 characters.">
-					<Input type="password" autoComplete="new-password" required minLength={10} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+				<Field label="Password">
+					<PasswordInput autoComplete="new-password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
 				</Field>
 				<ErrorNote error={error} />
 				<Button variant="primary" className="w-full" loading={busy}>

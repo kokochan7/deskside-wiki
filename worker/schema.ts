@@ -112,6 +112,13 @@ const MIGRATIONS: string[][] = [
 		) WHERE id IN (SELECT id FROM username_map)`,
 		`DROP TABLE username_map`,
 	],
+	[
+		// Admins set the order categories appear in. Start from alphabetical.
+		`ALTER TABLE categories ADD COLUMN position INTEGER NOT NULL DEFAULT 0`,
+		`UPDATE categories SET position = (SELECT COUNT(*) FROM categories k WHERE k.name < categories.name COLLATE NOCASE)`,
+		// Accounts are identified by username alone; the name column now just mirrors it.
+		`UPDATE users SET name = username`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

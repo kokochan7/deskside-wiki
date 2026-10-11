@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, Loader2, X } from 'lucide-react';
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -51,6 +51,24 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 export const Input = ({ className, ...p }: React.InputHTMLAttributes<HTMLInputElement>) => (
 	<input {...p} className={cx(fieldClass, 'h-10', className)} />
 );
+// A password field with an eye button to show or hide what's typed.
+export function PasswordInput({ className, ...p }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+	const [show, setShow] = useState(false);
+	return (
+		<div className="relative">
+			<input {...p} type={show ? 'text' : 'password'} className={cx(fieldClass, 'h-10 pr-10', className)} />
+			<button
+				type="button"
+				onClick={() => setShow((v) => !v)}
+				className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-r-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+				aria-label={show ? 'Hide password' : 'Show password'}
+				title={show ? 'Hide password' : 'Show password'}
+			>
+				{show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+			</button>
+		</div>
+	);
+}
 export const Textarea = ({ className, ...p }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
 	<textarea {...p} className={cx(fieldClass, 'py-2', className)} />
 );
