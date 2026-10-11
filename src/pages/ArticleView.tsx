@@ -29,10 +29,10 @@ export function ArticleView({ id }: { id: number }) {
 	if (!article) return <Spinner />;
 
 	const remove = async () => {
-		if (!(await confirm('Delete article?', `"${article.title}" will be permanently deleted. This can't be undone.`))) return;
+		if (!(await confirm('Delete KB?', `"${article.title}" will be permanently deleted. This can't be undone.`))) return;
 		try {
 			await api.del(`/articles/${id}`);
-			toast('Article deleted');
+			toast('KB deleted');
 			navigate('/articles');
 		} catch (e) {
 			toast((e as Error).message, 'error');
@@ -74,7 +74,7 @@ export function ArticleView({ id }: { id: number }) {
 							<Button size="sm" onClick={() => setSharing(true)} title="Share with people who don't have an account">
 								<Share2 className="size-4" /> Share
 							</Button>
-							<Button size="sm" onClick={() => navigate(`/articles/new?copy=${id}`)} title="Start a new article with this one's content">
+							<Button size="sm" onClick={() => navigate(`/articles/new?copy=${id}`)} title="Start a new KB with this one's content">
 								<CopyPlus className="size-4" /> Copy
 							</Button>
 							<Button size="sm" onClick={() => navigate(`/articles/${id}/edit`)}>
@@ -95,7 +95,7 @@ export function ArticleView({ id }: { id: number }) {
 				{article.created_by_name && article.created_by_name !== article.updated_by_name && ` · Created by ${article.created_by_name}`}
 			</p>
 			<Card className="mt-6 p-6 sm:p-8">
-				{article.body.trim() ? <Markdown source={article.body} /> : <p className="text-sm text-zinc-500">This article is empty.</p>}
+				{article.body.trim() ? <Markdown source={article.body} /> : <p className="text-sm text-zinc-500">This KB is empty.</p>}
 			</Card>
 			{article.tags && (
 				<div className="mt-4 flex flex-wrap gap-1.5">
@@ -146,10 +146,10 @@ function ShareDialog({ open, onClose, articleId, token, onChange }: { open: bool
 		});
 
 	return (
-		<Modal open={open} onClose={onClose} title="Share this article">
+		<Modal open={open} onClose={onClose} title="Share this KB">
 			{token ? (
 				<div className="space-y-4">
-					<p className="text-sm text-zinc-500">Anyone with this link can read this article and its images, without an account. They can't see anything else.</p>
+					<p className="text-sm text-zinc-500">Anyone with this link can read this KB and its images, without an account. They can't see anything else.</p>
 					<div className="flex gap-2">
 						<Input readOnly value={shareUrl(token)} onFocus={(e) => e.target.select()} aria-label="Share link" />
 						<Button
@@ -172,7 +172,7 @@ function ShareDialog({ open, onClose, articleId, token, onChange }: { open: bool
 			) : (
 				<div className="space-y-4">
 					<p className="text-sm text-zinc-500">
-						Create a link that lets anyone read this article without an account, for example to send to a client. You can turn it off at any time.
+						Create a link that lets anyone read this KB without an account, for example to send to a client. You can turn it off at any time.
 					</p>
 					<div className="flex justify-end gap-2">
 						<Button onClick={onClose}>Cancel</Button>

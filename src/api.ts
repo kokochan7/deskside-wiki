@@ -25,6 +25,7 @@ export type Client = {
 	email: string;
 	address: string;
 	notes: string;
+	new_hire: string;
 	logo_image_id: string | null;
 	article_count?: number;
 };
@@ -33,9 +34,6 @@ export type ClientRef = { id: number; name: string };
 export type Overview = {
 	counts: { articles: number; clients: number; users: number; internal: number; updated_30d: number };
 	recent: { id: number; title: string; category: string; updated_at: string; clients: ClientRef[]; updated_by_name: string | null }[];
-	categories: { category: string; count: number }[];
-	clients: { id: number; name: string; count: number }[];
-	weekly: { week: string; count: number }[];
 };
 
 export type Accent = 'violet' | 'blue' | 'teal' | 'green' | 'orange' | 'rose' | 'slate';

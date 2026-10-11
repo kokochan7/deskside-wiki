@@ -79,7 +79,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 			return;
 		}
 		if (!form.title.trim()) {
-			setError('Give the article a title.');
+			setError('Give the KB a title.');
 			return;
 		}
 		setBusy(true);
@@ -88,7 +88,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 			const payload = form;
 			const res = id ? await api.put(`/articles/${id}`, payload) : await api.post('/articles', payload);
 			setInitial(JSON.stringify(form));
-			toast(id ? 'Changes saved' : 'Article created');
+			toast(id ? 'Changes saved' : 'KB created');
 			navigate(`/articles/${res.id}`);
 		} catch (e) {
 			setError((e as Error).message);
@@ -187,7 +187,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 				<input
 					value={form.title}
 					onChange={(e) => set({ title: e.target.value })}
-					placeholder="Article title"
+					placeholder="KB title"
 					autoFocus={!id}
 					className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
 				/>
@@ -209,7 +209,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 				<div>
 					<span className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Clients</span>
 					<ClientPicker clients={clients} value={form.client_ids} onChange={(client_ids) => set({ client_ids })} placeholder="Internal (no clients)" />
-					{!form.client_ids.length && <span className="mt-1 block text-xs text-zinc-500">None selected: the article is internal.</span>}
+					{!form.client_ids.length && <span className="mt-1 block text-xs text-zinc-500">None selected: the KB is internal.</span>}
 				</div>
 				<Field label="Tags" hint="Separate with commas.">
 					<Input value={form.tags} onChange={(e) => set({ tags: e.target.value })} placeholder="vpn, fortinet" />
@@ -314,7 +314,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 						<Loader2 className="size-3 animate-spin" /> Uploading {uploading} image{uploading === 1 ? '' : 's'}…
 					</span>
 				)}
-				Markdown supported. Paste, drag in or upload images. Press Ctrl/⌘ + S to save. Don't store passwords in articles.
+				Markdown supported. Paste, drag in or upload images. Press Ctrl/⌘ + S to save. Don't store passwords in KBs.
 			</p>
 		</>
 	);

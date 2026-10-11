@@ -7,7 +7,7 @@ import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Passwo
 
 const ROLE_INFO: Record<Role, string> = {
 	admin: 'Full access, including deleting and managing user accounts.',
-	technician: 'Can create and edit articles and clients, but not delete them.',
+	technician: 'Can create and edit KBs and clients, but not delete them.',
 	viewer: 'Read-only access.',
 };
 
@@ -23,7 +23,7 @@ export function Team() {
 	}, [load]);
 
 	const remove = async (u: TeamMember) => {
-		if (!(await confirm('Remove user account?', `${u.username} will lose access immediately. Articles they wrote are kept.`, 'Remove'))) return;
+		if (!(await confirm('Remove user account?', `${u.username} will lose access immediately. KBs they wrote are kept.`, 'Remove'))) return;
 		try {
 			await api.del(`/users/${u.id}`);
 			toast(`${u.username} removed`);

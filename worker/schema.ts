@@ -119,6 +119,10 @@ const MIGRATIONS: string[][] = [
 		// Accounts are identified by username alone; the name column now just mirrors it.
 		`UPDATE users SET name = username`,
 	],
+	[
+		// Client pages get a New Hire Procedure section next to Information (the existing notes column).
+		`ALTER TABLE clients ADD COLUMN new_hire TEXT NOT NULL DEFAULT ''`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

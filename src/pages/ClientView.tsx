@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, FilePlus2, Globe, Mail, MapPin, Pencil, Phone, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Globe, Info, Mail, MapPin, Pencil, Phone, Trash2, UserPlus } from 'lucide-react';
 import { api, imageUrl, type ClientDetail } from '../api';
 import { ClientLogo } from '../branding';
 import { plural, timeAgo } from '../format';
 import { navigate } from '../router';
+import { ClientSection } from '../components/ClientSection';
 import { canEdit, useUser } from '../session';
-import { Badge, Button, Card, Empty, Markdown, Spinner, useFeedback } from '../components/ui';
+import { Badge, Button, Card, Empty, Spinner, useFeedback } from '../components/ui';
 import { ClientForm } from './ClientList';
 
 export function ClientView({ id }: { id: number }) {
 	const user = useUser();
 	const editor = canEdit(user);
+	const isAdmin = user.role === 'admin';
 	const { confirm, toast } = useFeedback();
 	const [client, setClient] = useState<ClientDetail | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function ClientView({ id }: { id: number }) {
 	if (!client) return <Spinner />;
 
 	const remove = async () => {
-		if (!(await confirm('Delete client?', `${client.name} will be deleted. Its articles will be kept as internal articles.`))) return;
+		if (!(await confirm('Delete client?', `${client.name} will be deleted. Its KBs will be kept as internal KBs.`))) return;
 		try {
 			await api.del(`/clients/${id}`);
 			toast('Client deleted');
@@ -61,7 +63,7 @@ export function ClientView({ id }: { id: number }) {
 					<div>
 						<h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
 						<p className="text-sm text-zinc-500">
-							{plural(client.articles.length, 'article')}
+							{plural(client.articles.length, 'KB')}
 						</p>
 					</div>
 				</div>
@@ -70,7 +72,7 @@ export function ClientView({ id }: { id: number }) {
 						<Button onClick={() => setEditing(true)}>
 							<Pencil className="size-4" /> Edit
 						</Button>
-						{user.role === 'admin' && (
+						{isAdmin && (
 							<Button variant="ghost" onClick={remove} title="Delete client" className="hover:text-red-600">
 								<Trash2 className="size-4" />
 							</Button>
@@ -81,34 +83,31 @@ export function ClientView({ id }: { id: number }) {
 
 			<div className="grid gap-6 lg:grid-cols-3">
 				<div className="space-y-6 lg:col-span-2">
-					<section>
-						<div className="mb-3 flex items-center justify-between">
-							<h2 className="text-sm font-semibold text-zinc-500">Articles for {client.name}</h2>
-							{editor && (
-								<Button size="sm" variant="ghost" onClick={() => navigate(`/articles/new?client=${client.id}`)}>
-									<FilePlus2 className="size-4" /> New article
-								</Button>
-							)}
-						</div>
-						{client.articles.length === 0 ? (
-							<Empty icon={<BookOpen className="size-5" />} title="No client articles yet">
-								Document this client's network, setup and recurring fixes.
-							</Empty>
-						) : (
-							<Card className="divide-y divide-zinc-100 dark:divide-zinc-800">
-								{client.articles.map((a) => (
-									<a key={a.id} href={`#/articles/${a.id}`} className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-										<span className="min-w-0 flex-1 truncate font-medium">{a.title}</span>
-										<Badge>{a.category}</Badge>
-										<span className="hidden text-xs text-zinc-400 sm:inline">{timeAgo(a.updated_at)}</span>
-									</a>
-								))}
-							</Card>
-						)}
-					</section>
+					<ClientSection
+						clientId={client.id}
+						section="info"
+						title="Information"
+						icon={<Info className="size-5" />}
+						text={client.notes}
+						canEdit={isAdmin}
+						empty={isAdmin ? 'Nothing here yet. Add contract hours, key contacts, escalation paths and other important details.' : 'No information yet.'}
+						placeholder={'## Key contacts\n- Office manager: ...\n\n## Support hours\n...'}
+						onSaved={(notes) => setClient({ ...client, notes })}
+					/>
+					<ClientSection
+						clientId={client.id}
+						section="new-hire"
+						title="New Hire Procedure"
+						icon={<UserPlus className="size-5" />}
+						text={client.new_hire}
+						canEdit={isAdmin}
+						empty={isAdmin ? 'Nothing here yet. Write the steps for setting up a new employee at this client.' : 'No new hire procedure yet.'}
+						placeholder={'1. Create the Microsoft 365 account\n2. Assign licences\n3. Add to groups: ...\n- [ ] Laptop ready'}
+						onSaved={(new_hire) => setClient({ ...client, new_hire })}
+					/>
 				</div>
 
-				<aside className="space-y-6">
+				<aside>
 					<Card className="p-5">
 						<h2 className="mb-3 text-sm font-semibold text-zinc-500">Details</h2>
 						{details.length === 0 ? (
@@ -130,14 +129,27 @@ export function ClientView({ id }: { id: number }) {
 							</ul>
 						)}
 					</Card>
-					{client.notes && (
-						<Card className="p-5">
-							<h2 className="mb-3 text-sm font-semibold text-zinc-500">Notes</h2>
-							<Markdown source={client.notes} className="prose-sm" />
-						</Card>
-					)}
 				</aside>
 			</div>
+
+			<section className="mt-8">
+				<h2 className="mb-3 text-sm font-semibold text-zinc-500">KBs for {client.name}</h2>
+				{client.articles.length === 0 ? (
+					<Empty icon={<BookOpen className="size-5" />} title="No KBs for this client yet">
+						Pick this client when you create a KB and it will show up here.
+					</Empty>
+				) : (
+					<Card className="divide-y divide-zinc-100 dark:divide-zinc-800">
+						{client.articles.map((a) => (
+							<a key={a.id} href={`#/articles/${a.id}`} className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+								<span className="min-w-0 flex-1 truncate font-medium">{a.title}</span>
+								<Badge>{a.category}</Badge>
+								<span className="hidden text-xs text-zinc-400 sm:inline">{timeAgo(a.updated_at)}</span>
+							</a>
+						))}
+					</Card>
+				)}
+			</section>
 
 			<ClientForm open={editing} onClose={() => setEditing(false)} onSaved={() => load()} client={client} />
 		</>
