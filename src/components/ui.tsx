@@ -240,6 +240,25 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 	if (width) node.setAttribute('width', width);
 });
 
+// Text colour and font size from the editor are stored as <span style="…">. Keep just those two, with plain values.
+const STYLE_RULES: Record<string, RegExp> = {
+	color: /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i,
+	'font-size': /^\d{1,3}(\.\d+)?(px|em|rem|%)$/i,
+};
+DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+	if (data.attrName !== 'style') return;
+	const kept = data.attrValue
+		.split(';')
+		.map((rule) => rule.split(':').map((part) => part.trim()))
+		.filter(([prop, value]) => prop && value && STYLE_RULES[prop.toLowerCase()]?.test(value))
+		.map(([prop, value]) => `${prop.toLowerCase()}: ${value}`);
+	if (kept.length) data.attrValue = kept.join('; ');
+	else data.keepAttr = false;
+});
+
+// Markdown for a single line of text as HTML (used for indented paragraphs, which are stored as HTML).
+export const inlineHtml = (md: string) => marked.parseInline(md, { async: false }) as string;
+
 export const renderMarkdown = (md: string) => DOMPurify.sanitize(marked.parse(md, { async: false }) as string);
 export const safeSnippet = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['mark'] });
 

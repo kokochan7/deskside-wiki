@@ -3,15 +3,21 @@ import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/r
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import Image from '@tiptap/extension-image';
+import Paragraph from '@tiptap/extension-paragraph';
+import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import {
+	AArrowDown,
+	AArrowUp,
+	Baseline,
 	Bold,
+	Check,
 	Code,
-	Heading2,
-	Heading3,
 	ImagePlus,
+	IndentDecrease,
+	IndentIncrease,
 	Italic,
 	Link2,
 	List,
@@ -26,7 +32,7 @@ import {
 	type LucideIcon,
 } from 'lucide-react';
 import { altText, uploadImage } from '../images';
-import { IMAGE_WIDTH, cx, proseClass, useFeedback } from './ui';
+import { IMAGE_WIDTH, cx, inlineHtml, proseClass, useFeedback } from './ui';
 
 // What-you-see-is-what-you-get editor. Content is still stored as Markdown, so existing KBs, search and
 // share links keep working; people just never see the Markdown.
@@ -56,7 +62,12 @@ export function RichEditor({
 
 	const editor = useEditor({
 		extensions: [
-			StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: { openOnClick: false, autolink: true } }),
+			// Headings no longer have buttons, but older KBs use them, so they still load and save.
+			StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: { openOnClick: false, autolink: true }, paragraph: false }),
+			IndentParagraph,
+			StyledText,
+			Color,
+			FontSize,
 			Markdown,
 			ResizableImage,
 			TaskList,
@@ -147,15 +158,62 @@ const ResizableImage = Image.extend({
 	resize: { enabled: true, directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'], minWidth: 60, minHeight: 30, alwaysPreserveAspectRatio: true },
 });
 
-type Tool = { icon: LucideIcon; label: string; run: () => void; active?: boolean; disabled?: boolean } | 'sep';
+// Indented paragraphs. Markdown has no indent, so an indented paragraph is saved as <p data-indent="2">…</p>,
+// which the reader shows as is (the margins are in index.css).
+const MAX_INDENT = 6;
+const IndentParagraph = Paragraph.extend({
+	addAttributes() {
+		return {
+			indent: {
+				default: 0,
+				parseHTML: (el) => Math.min(MAX_INDENT, Math.max(0, Number(el.getAttribute('data-indent')) || 0)),
+				renderHTML: (attrs) => (attrs.indent ? { 'data-indent': attrs.indent } : {}),
+			},
+		};
+	},
+	renderMarkdown(node, h, ctx) {
+		const indent = node.attrs?.indent;
+		if (!indent) return this.parent?.(node, h, ctx) ?? '';
+		return `<p data-indent="${indent}">${inlineHtml(h.renderChildren(node.content ?? []))}</p>`;
+	},
+});
+
+// Text colour and font size, saved as <span style="color: …; font-size: …">. It ranks below bold, links etc. so the
+// span always sits innermost (**<span>…</span>**), which is the form that reads back in.
+const StyledText = TextStyle.extend({
+	priority: 50,
+	renderMarkdown: (node, h) => {
+		const { color, fontSize } = node.attrs ?? {};
+		const style = [color && `color: ${color}`, fontSize && `font-size: ${fontSize}`].filter(Boolean).join('; ');
+		const inner = h.renderChildren(node);
+		return style ? `<span style="${style}">${inner}</span>` : inner;
+	},
+});
+
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 30, 36];
+const COLORS = [
+	['Red', '#dc2626'],
+	['Orange', '#ea580c'],
+	['Amber', '#d97706'],
+	['Green', '#16a34a'],
+	['Teal', '#0d9488'],
+	['Blue', '#2563eb'],
+	['Purple', '#7c3aed'],
+	['Pink', '#db2777'],
+	['Grey', '#71717a'],
+];
+
+type Tool = { icon: LucideIcon; label: string; run: () => void; active?: boolean; disabled?: boolean } | 'sep' | 'color';
 
 function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () => void; uploading: number }) {
 	// Re-render the toolbar (only) when the formatting at the cursor changes.
 	const s = useEditorState({
 		editor,
 		selector: ({ editor: e }) => ({
-			h2: e.isActive('heading', { level: 2 }),
-			h3: e.isActive('heading', { level: 3 }),
+			fontSize: (e.getAttributes('textStyle').fontSize as string | undefined) ?? '',
+			color: (e.getAttributes('textStyle').color as string | undefined) ?? '',
+			canIndent: canIndent(e, 1),
+			canOutdent: canIndent(e, -1),
 			bold: e.isActive('bold'),
 			italic: e.isActive('italic'),
 			strike: e.isActive('strike'),
@@ -178,19 +236,24 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 		if (!url.trim()) chain().extendMarkRange('link').unsetLink().run();
 		else chain().extendMarkRange('link').setLink({ href: url.trim() }).run();
 	};
+	const setSize = (px: number | null) => (px ? chain().setFontSize(`${px}px`).run() : chain().unsetFontSize().run());
+	const current = parseFloat(s.fontSize) || 16;
 	const tools: Tool[] = [
-		{ icon: Heading2, label: 'Heading', run: () => chain().toggleHeading({ level: 2 }).run(), active: s.h2 },
-		{ icon: Heading3, label: 'Subheading', run: () => chain().toggleHeading({ level: 3 }).run(), active: s.h3 },
+		{ icon: AArrowDown, label: 'Decrease font size', run: () => setSize([...FONT_SIZES].reverse().find((n) => n < current) ?? null), disabled: current <= FONT_SIZES[0] },
+		{ icon: AArrowUp, label: 'Increase font size', run: () => setSize(FONT_SIZES.find((n) => n > current) ?? null), disabled: current >= FONT_SIZES.at(-1)! },
 		'sep',
 		{ icon: Bold, label: 'Bold', run: () => chain().toggleBold().run(), active: s.bold },
 		{ icon: Italic, label: 'Italic', run: () => chain().toggleItalic().run(), active: s.italic },
 		{ icon: Strikethrough, label: 'Strikethrough', run: () => chain().toggleStrike().run(), active: s.strike },
 		{ icon: Code, label: 'Code', run: () => chain().toggleCode().run(), active: s.code },
 		{ icon: Link2, label: 'Link', run: setLink, active: s.link },
+		'color',
 		'sep',
 		{ icon: List, label: 'Bulleted list', run: () => chain().toggleBulletList().run(), active: s.bullet },
 		{ icon: ListOrdered, label: 'Numbered list', run: () => chain().toggleOrderedList().run(), active: s.ordered },
 		{ icon: ListChecks, label: 'Checklist', run: () => chain().toggleTaskList().run(), active: s.task },
+		{ icon: IndentDecrease, label: 'Decrease indent', run: () => indent(editor, -1), disabled: !s.canOutdent },
+		{ icon: IndentIncrease, label: 'Increase indent', run: () => indent(editor, 1), disabled: !s.canIndent },
 		{ icon: Quote, label: 'Quote', run: () => chain().toggleBlockquote().run(), active: s.quote },
 		{ icon: Table, label: 'Insert table', run: () => chain().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(), disabled: s.table },
 		{ icon: ImagePlus, label: 'Insert image', run: onImage },
@@ -200,9 +263,12 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 	];
 	return (
 		<div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-zinc-100 bg-white/95 px-2 py-1.5 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+			<FontSizeSelect value={s.fontSize} onChange={setSize} />
 			{tools.map((t, i) =>
 				t === 'sep' ? (
 					<span key={i} className="mx-1 h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
+				) : t === 'color' ? (
+					<ColorPicker key={t} editor={editor} value={s.color} />
 				) : (
 					<button
 						key={t.label}
@@ -229,6 +295,129 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 				</span>
 			)}
 		</div>
+	);
+}
+
+// Increase / decrease indent: list items nest under the one above; other paragraphs shift right.
+function listItemType(e: Editor) {
+	return e.isActive('taskItem') ? 'taskItem' : e.isActive('listItem') ? 'listItem' : null;
+}
+function indentableParagraphs(e: Editor) {
+	const { from, to } = e.state.selection;
+	const found: { pos: number; indent: number }[] = [];
+	e.state.doc.nodesBetween(from, to, (node, pos, parent) => {
+		if (node.type.name === 'paragraph' && parent?.type.name === 'doc') found.push({ pos, indent: node.attrs.indent ?? 0 });
+		return node.type.name === 'doc' || node.type.name === 'paragraph';
+	});
+	return found;
+}
+function canIndent(e: Editor, dir: 1 | -1) {
+	const item = listItemType(e);
+	if (item) return dir > 0 ? e.can().sinkListItem(item) : e.can().liftListItem(item);
+	return indentableParagraphs(e).some((p) => (dir > 0 ? p.indent < MAX_INDENT : p.indent > 0));
+}
+function indent(e: Editor, dir: 1 | -1) {
+	const item = listItemType(e);
+	if (item) return dir > 0 ? e.chain().focus().sinkListItem(item).run() : e.chain().focus().liftListItem(item).run();
+	const paragraphs = indentableParagraphs(e);
+	e.chain()
+		.focus()
+		.command(({ tr }) => {
+			for (const p of paragraphs) tr.setNodeAttribute(p.pos, 'indent', Math.min(MAX_INDENT, Math.max(0, p.indent + dir)));
+			return paragraphs.length > 0;
+		})
+		.run();
+}
+
+function FontSizeSelect({ value, onChange }: { value: string; onChange: (px: number | null) => void }) {
+	const px = parseFloat(value);
+	const sizes = px && !FONT_SIZES.includes(px) ? [...FONT_SIZES, px].sort((a, b) => a - b) : FONT_SIZES;
+	return (
+		<select
+			value={px || ''}
+			onChange={(e) => onChange(Number(e.target.value) || null)}
+			title="Font size"
+			aria-label="Font size"
+			className="mr-0.5 h-7 rounded-md border border-zinc-200 bg-white pr-6 pl-2 text-xs text-zinc-700 outline-none hover:border-zinc-300 focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+		>
+			<option value="">Normal size</option>
+			{sizes.map((n) => (
+				<option key={n} value={n}>
+					{n}
+				</option>
+			))}
+		</select>
+	);
+}
+
+function ColorPicker({ editor, value }: { editor: Editor; value: string }) {
+	const [open, setOpen] = useState(false);
+	const ref = useRef<HTMLSpanElement>(null);
+	useEffect(() => {
+		if (!open) return;
+		const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+		const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+		document.addEventListener('mousedown', close);
+		document.addEventListener('keydown', esc);
+		return () => {
+			document.removeEventListener('mousedown', close);
+			document.removeEventListener('keydown', esc);
+		};
+	}, [open]);
+	const pick = (color: string | null) => {
+		if (color) editor.chain().focus().setColor(color).run();
+		else editor.chain().focus().unsetColor().run();
+		setOpen(false);
+	};
+	const swatch = 'grid size-6 place-items-center rounded-full ring-offset-1 hover:scale-110 dark:ring-offset-zinc-900';
+	return (
+		<span ref={ref} className="relative">
+			<button
+				type="button"
+				onMouseDown={(e) => e.preventDefault()}
+				onClick={() => setOpen((o) => !o)}
+				title="Text colour"
+				aria-label="Text colour"
+				aria-expanded={open}
+				className={cx(
+					'flex flex-col items-center rounded-md px-1.5 pt-1 pb-0.5',
+					open ? 'bg-zinc-100 dark:bg-zinc-800' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
+				)}
+			>
+				<Baseline className="size-4" />
+				<span className="mt-px h-0.5 w-4 rounded-full" style={{ background: value || 'currentColor' }} />
+			</button>
+			{open && (
+				<div className="absolute top-full left-0 z-20 mt-1 w-44 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+					<div className="grid grid-cols-5 gap-1.5">
+						<button
+							type="button"
+							onMouseDown={(e) => e.preventDefault()}
+							onClick={() => pick(null)}
+							title="Default colour"
+							aria-label="Default colour"
+							className={cx(swatch, 'border border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-800', !value && 'ring-2 ring-zinc-900 dark:ring-white')}
+						>
+							<span className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">A</span>
+						</button>
+						{COLORS.map(([name, hex]) => (
+							<button
+								key={hex}
+								type="button"
+								onMouseDown={(e) => e.preventDefault()}
+								onClick={() => pick(hex)}
+								title={name}
+								aria-label={name}
+								className={cx(swatch, value.toLowerCase() === hex && 'ring-2 ring-zinc-900 dark:ring-white')}
+								style={{ background: hex }}
+							>
+								{value.toLowerCase() === hex && <Check className="size-3.5 text-white" />}
+							</button>
+						))}
+					</div>
+				</div>
+			)}
+		</span>
 	);
 }
 

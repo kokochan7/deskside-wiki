@@ -9,7 +9,7 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle: stri
 			<div className="pointer-events-none absolute -top-40 left-1/2 h-[500px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-400/30 via-fuchsia-400/20 to-sky-400/30 blur-3xl dark:from-brand-600/25 dark:via-fuchsia-600/10 dark:to-sky-600/20" />
 			<div className="relative w-full max-w-sm">
 				<div className="mb-8 text-center">
-					<BrandMark className="mx-auto mb-4 size-12 rounded-xl" />
+					<BrandMark className="mx-auto mb-4 size-12" />
 					<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
 					<p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
 				</div>
