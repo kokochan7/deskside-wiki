@@ -64,6 +64,18 @@ const MIGRATIONS: string[][] = [
 			INSERT INTO articles_fts(rowid, title, body, tags) VALUES (new.id, new.title, new.body, new.tags);
 		END`,
 	],
+	[
+		// Images pasted or uploaded into articles. Stored in D1 so no extra Cloudflare setup is needed;
+		// the browser shrinks them before upload to stay under D1's 2 MB value limit.
+		`CREATE TABLE IF NOT EXISTS images (
+			id TEXT PRIMARY KEY,
+			content_type TEXT NOT NULL,
+			size INTEGER NOT NULL,
+			data BLOB NOT NULL,
+			created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

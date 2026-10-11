@@ -307,6 +307,43 @@ app.delete('/articles/:id', canEdit, async (c) => {
 	return c.json({ ok: true });
 });
 
+// ---------- images ----------
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BYTES = 1_900_000; // D1 values max out at 2 MB.
+
+app.post('/images', canEdit, async (c) => {
+	const type = (c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
+	if (!IMAGE_TYPES.includes(type)) fail(400, 'Only PNG, JPEG, WebP and GIF images are supported.');
+	const data = await c.req.arrayBuffer();
+	if (!data.byteLength) fail(400, 'The image is empty.');
+	if (data.byteLength > MAX_IMAGE_BYTES) fail(400, 'That image is too large (max 1.9 MB after compression).');
+	const id = crypto.randomUUID().replace(/-/g, '');
+	await c.env.DB.prepare(`INSERT INTO images (id, content_type, size, data, created_by) VALUES (?, ?, ?, ?, ?)`)
+		.bind(id, type, data.byteLength, data, c.get('user').id)
+		.run();
+	return c.json({ id, url: `/api/images/${id}` }, 201);
+});
+
+app.get('/images/:id', async (c) => {
+	const id = c.req.param('id');
+	if (!/^[0-9a-f]{32}$/.test(id)) fail(404, 'Image not found.');
+	const row = await c.env.DB.prepare(`SELECT content_type, data FROM images WHERE id = ?`)
+		.bind(id)
+		.first<{ content_type: string; data: number[] | ArrayBuffer }>();
+	if (!row) fail(404, 'Image not found.');
+	const bytes = row!.data instanceof ArrayBuffer ? new Uint8Array(row!.data) : new Uint8Array(row!.data);
+	return new Response(bytes, {
+		headers: {
+			'Content-Type': row!.content_type,
+			// Images never change once uploaded; only signed-in users can fetch them.
+			'Cache-Control': 'private, max-age=31536000, immutable',
+			'X-Content-Type-Options': 'nosniff',
+			'Content-Security-Policy': "default-src 'none'",
+		},
+	});
+});
+
 // ---------- clients & contacts ----------
 
 app.get('/clients', async (c) => {
