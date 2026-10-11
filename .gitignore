@@ -1,6 +1,6 @@
-dist/
-.astro/
 node_modules/
+dist/
+.wrangler/
+.dev.vars
 .env
-.env.production
 .DS_Store

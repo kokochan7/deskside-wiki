@@ -1,0 +1,89 @@
+// The app creates and upgrades its own tables, so a fresh D1 database needs no manual setup.
+// To change the schema, append a new entry to MIGRATIONS. Never edit an entry that has shipped.
+const MIGRATIONS: string[][] = [
+	[
+		`CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+			name TEXT NOT NULL,
+			role TEXT NOT NULL CHECK (role IN ('admin', 'technician', 'viewer')),
+			password_hash TEXT NOT NULL,
+			active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			last_login_at TEXT
+		)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			expires_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS clients (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			website TEXT NOT NULL DEFAULT '',
+			phone TEXT NOT NULL DEFAULT '',
+			email TEXT NOT NULL DEFAULT '',
+			address TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS contacts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			email TEXT NOT NULL DEFAULT '',
+			phone TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS articles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			body TEXT NOT NULL DEFAULT '',
+			category TEXT NOT NULL DEFAULT 'General',
+			tags TEXT NOT NULL DEFAULT '',
+			client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+			created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+			updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_articles_client ON articles(client_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_contacts_client ON contacts(client_id)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(title, body, tags, content='articles', content_rowid='id')`,
+		`CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
+			INSERT INTO articles_fts(rowid, title, body, tags) VALUES (new.id, new.title, new.body, new.tags);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
+			INSERT INTO articles_fts(articles_fts, rowid, title, body, tags) VALUES ('delete', old.id, old.title, old.body, old.tags);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
+			INSERT INTO articles_fts(articles_fts, rowid, title, body, tags) VALUES ('delete', old.id, old.title, old.body, old.tags);
+			INSERT INTO articles_fts(rowid, title, body, tags) VALUES (new.id, new.title, new.body, new.tags);
+		END`,
+	],
+];
+
+let ready: Promise<void> | null = null;
+
+export function ensureSchema(db: D1Database): Promise<void> {
+	ready ??= migrate(db).catch((err) => {
+		ready = null;
+		throw err;
+	});
+	return ready;
+}
+
+async function migrate(db: D1Database) {
+	await db.prepare(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`).run();
+	const row = await db.prepare(`SELECT MAX(version) AS v FROM schema_version`).first<{ v: number | null }>();
+	const current = row?.v ?? 0;
+	for (let i = current; i < MIGRATIONS.length; i++) {
+		await db.batch([
+			...MIGRATIONS[i].map((sql) => db.prepare(sql)),
+			db.prepare(`INSERT INTO schema_version (version) VALUES (?)`).bind(i + 1),
+		]);
+	}
+}

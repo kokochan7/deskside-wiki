@@ -1,0 +1,145 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { Building2, Plus, Search } from 'lucide-react';
+import { api, type Client } from '../api';
+import { initials } from '../format';
+import { navigate } from '../router';
+import { canEdit, useUser } from '../session';
+import { Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Spinner, Textarea, useFeedback } from '../components/ui';
+
+export function ClientList() {
+	const user = useUser();
+	const [clients, setClients] = useState<Client[] | null>(null);
+	const [q, setQ] = useState('');
+	const [adding, setAdding] = useState(false);
+
+	useEffect(() => {
+		api.get<Client[]>('/clients').then(setClients).catch(() => setClients([]));
+	}, []);
+
+	const shown = clients?.filter((c) => [c.name, c.email, c.phone, c.website].join(' ').toLowerCase().includes(q.toLowerCase()));
+
+	return (
+		<>
+			<PageHeader
+				title="Clients"
+				subtitle="Companies you support, their contacts and client-specific docs."
+				actions={
+					canEdit(user) && (
+						<Button variant="primary" onClick={() => setAdding(true)}>
+							<Plus className="size-4" /> Add client
+						</Button>
+					)
+				}
+			/>
+			{clients && clients.length > 0 && (
+				<div className="relative mb-5 max-w-md">
+					<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+					<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter clients…" className="pl-9" />
+				</div>
+			)}
+			{!shown ? (
+				<Spinner />
+			) : clients!.length === 0 ? (
+				<Empty icon={<Building2 className="size-5" />} title="No clients yet">
+					Add the companies you support to keep their contacts and docs in one place.
+				</Empty>
+			) : shown.length === 0 ? (
+				<p className="py-10 text-center text-sm text-zinc-500">No clients match “{q}”.</p>
+			) : (
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{shown.map((c) => (
+						<a key={c.id} href={`#/clients/${c.id}`}>
+							<Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500/50">
+								<div className="flex items-center gap-3">
+									<span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-sm font-semibold text-brand-700 dark:from-brand-500/20 dark:to-brand-500/30 dark:text-brand-200">
+										{initials(c.name)}
+									</span>
+									<div className="min-w-0">
+										<div className="truncate font-medium">{c.name}</div>
+										<div className="truncate text-xs text-zinc-500">{c.website || c.email || c.phone || 'No details yet'}</div>
+									</div>
+								</div>
+								<div className="mt-4 flex gap-4 text-xs text-zinc-500">
+									<span>
+										<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.contact_count}</b> {c.contact_count === 1 ? 'contact' : 'contacts'}
+									</span>
+									<span>
+										<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.article_count}</b> {c.article_count === 1 ? 'article' : 'articles'}
+									</span>
+								</div>
+							</Card>
+						</a>
+					))}
+				</div>
+			)}
+			<ClientForm open={adding} onClose={() => setAdding(false)} onSaved={(id) => navigate(`/clients/${id}`)} />
+		</>
+	);
+}
+
+const blank = { name: '', website: '', phone: '', email: '', address: '', notes: '' };
+
+export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; onClose: () => void; onSaved: (id: number) => void; client?: Client }) {
+	const { toast } = useFeedback();
+	const [f, setF] = useState(blank);
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		if (open) {
+			setF(client ? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, notes: client.notes } : blank);
+			setError(null);
+			setBusy(false);
+		}
+	}, [open, client]);
+
+	const submit = async (e: FormEvent) => {
+		e.preventDefault();
+		setBusy(true);
+		setError(null);
+		try {
+			const res = client ? await api.put(`/clients/${client.id}`, f) : await api.post('/clients', f);
+			toast(client ? 'Client updated' : 'Client added');
+			onClose();
+			onSaved(res.id);
+		} catch (err) {
+			setError((err as Error).message);
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Modal open={open} onClose={onClose} title={client ? 'Edit client' : 'Add client'} wide>
+			<form onSubmit={submit} className="space-y-4">
+				<Field label="Company name">
+					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+				</Field>
+				<div className="grid gap-4 sm:grid-cols-3">
+					<Field label="Website">
+						<Input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} placeholder="example.com" />
+					</Field>
+					<Field label="Main phone">
+						<Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+					</Field>
+					<Field label="Main email">
+						<Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+					</Field>
+				</div>
+				<Field label="Address">
+					<Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
+				</Field>
+				<Field label="Notes" hint="Markdown supported. Don't store passwords here.">
+					<Textarea rows={5} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Contract hours, escalation path, quirks…" />
+				</Field>
+				<ErrorNote error={error} />
+				<div className="flex justify-end gap-2">
+					<Button type="button" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button variant="primary" loading={busy}>
+						{client ? 'Save' : 'Add client'}
+					</Button>
+				</div>
+			</form>
+		</Modal>
+	);
+}
