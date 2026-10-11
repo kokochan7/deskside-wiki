@@ -41,7 +41,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 			key: 'a' + a.id,
 			icon: <BookOpen className="size-4" />,
 			title: a.title,
-			sub: [a.category, a.client_name].filter(Boolean).join(' · '),
+			sub: [a.category, ...a.clients.map((c) => c.name)].join(' · '),
 			html: q ? safeSnippet(a.snippet) : undefined,
 			go: go(`/articles/${a.id}`),
 		}));

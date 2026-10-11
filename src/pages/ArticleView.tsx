@@ -46,14 +46,14 @@ export function ArticleView({ id }: { id: number }) {
 			</a>
 			<div className="mb-2 flex flex-wrap items-center gap-2">
 				<Badge>{article.category}</Badge>
-				{article.client_name && (
-					<a href={`#/clients/${article.client_id}`}>
+				{article.clients.map((c) => (
+					<a key={c.id} href={`#/clients/${c.id}`}>
 						<Badge tone="brand">
 							<Building2 className="mr-1 size-3" />
-							{article.client_name}
+							{c.name}
 						</Badge>
 					</a>
-				)}
+				))}
 			</div>
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<h1 className="text-3xl font-semibold tracking-tight">{article.title}</h1>

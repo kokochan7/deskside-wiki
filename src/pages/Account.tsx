@@ -33,7 +33,7 @@ export function Account() {
 			<PageHeader title="Your account" />
 			<Card className="mb-6 p-5">
 				<div className="font-medium">{user.name}</div>
-				<div className="text-sm text-zinc-500">{user.email}</div>
+				<div className="text-sm text-zinc-500">Username: {user.username}</div>
 				<div className="mt-2">
 					<Badge tone="brand">
 						<span className="capitalize">{user.role}</span>
