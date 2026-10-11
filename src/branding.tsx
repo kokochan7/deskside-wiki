@@ -39,25 +39,25 @@ export async function loadBranding(): Promise<Settings> {
 export const BrandingCtx = createContext<{ settings: Settings; reload: () => Promise<void> }>({ settings: DEFAULT_SETTINGS, reload: async () => {} });
 export const useBranding = () => useContext(BrandingCtx);
 
-// The site logo, or the default mark when none is uploaded.
+// The site logo (shown as a circle), or the default mark when none is uploaded.
 export function BrandMark({ className }: { className?: string }) {
 	const { settings } = useBranding();
-	return <img src={settings.logo_url ?? '/favicon.svg'} alt="" className={cx('object-contain', className)} />;
+	return <img src={settings.logo_url ?? '/favicon.svg'} alt="" className={cx('rounded-full object-cover', className)} />;
 }
 
-const sizes = { sm: 'size-6 text-[10px] rounded-md', md: 'size-10 text-sm rounded-lg', lg: 'size-14 text-lg rounded-xl' };
+const sizes = { sm: 'size-6 text-[10px]', md: 'size-10 text-sm', lg: 'size-14 text-lg' };
 
 export function ClientLogo({ name, logoUrl, size = 'md' }: { name: string; logoUrl: string | null; size?: keyof typeof sizes }) {
 	if (logoUrl)
 		return (
-			<span className={cx('grid shrink-0 place-items-center overflow-hidden bg-white ring-1 ring-zinc-200 dark:ring-zinc-700', sizes[size])}>
-				<img src={logoUrl} alt="" className="size-full object-contain p-0.5" />
+			<span className={cx('grid shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-zinc-200 dark:ring-zinc-700', sizes[size])}>
+				<img src={logoUrl} alt="" className="size-full object-cover" />
 			</span>
 		);
 	return (
 		<span
 			className={cx(
-				'grid shrink-0 place-items-center bg-gradient-to-br from-brand-100 to-brand-200 font-semibold text-brand-700 dark:from-brand-500/20 dark:to-brand-500/30 dark:text-brand-200',
+				'grid shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-100 to-brand-200 font-semibold text-brand-700 dark:from-brand-500/20 dark:to-brand-500/30 dark:text-brand-200',
 				sizes[size],
 			)}
 		>
@@ -84,8 +84,8 @@ export function LogoPicker({ url, onChange, label = 'Upload logo' }: { url: stri
 	};
 	return (
 		<div className="flex items-center gap-4">
-			<span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-				{busy ? <Loader2 className="size-5 animate-spin text-zinc-400" /> : url ? <img src={url} alt="" className="size-full object-contain p-1" /> : <ImagePlus className="size-5 text-zinc-400" />}
+			<span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full border border-dashed border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+				{busy ? <Loader2 className="size-5 animate-spin text-zinc-400" /> : url ? <img src={url} alt="" className="size-full object-cover" /> : <ImagePlus className="size-5 text-zinc-400" />}
 			</span>
 			<div className="flex flex-wrap gap-2">
 				<Button type="button" size="sm" onClick={() => input.current?.click()} disabled={busy}>
@@ -96,7 +96,7 @@ export function LogoPicker({ url, onChange, label = 'Upload logo' }: { url: stri
 						<Trash2 className="size-4" /> Remove
 					</Button>
 				)}
-				<p className="w-full text-xs text-zinc-500">PNG, JPG, WebP or SVG. Square images look best.</p>
+				<p className="w-full text-xs text-zinc-500">PNG, JPG, WebP or SVG. Shown as a circle, so square images look best.</p>
 			</div>
 			<input
 				ref={input}

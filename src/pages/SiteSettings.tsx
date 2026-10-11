@@ -40,7 +40,7 @@ export function SiteSettings() {
 	};
 
 	return (
-		<div className="max-w-2xl">
+		<div className="max-w-2xl space-y-6">
 			<PageHeader
 				title="Settings"
 				actions={
@@ -49,6 +49,7 @@ export function SiteSettings() {
 					</Button>
 				}
 			/>
+			{/* Only the branding fields need the form; Access is read from state when saving, so it can sit below Categories. */}
 			<form id="site-settings" onSubmit={submit} className="space-y-6">
 				<ErrorNote error={error} />
 				<Card className="space-y-5 p-5">
@@ -84,41 +85,29 @@ export function SiteSettings() {
 						</div>
 					</div>
 				</Card>
-
-				<Card className="p-5">
-					<h2 className="mb-3 text-sm font-semibold text-zinc-500">Preview</h2>
-					<div className="flex items-center gap-3">
-						<img src={f.logo_url ?? '/favicon.svg'} alt="" className="size-9 rounded-lg object-contain" />
-						<span className="font-semibold tracking-tight">{f.site_name || 'Site name'}</span>
-						<Button type="button" variant="primary" size="sm" className="ml-auto" tabIndex={-1}>
-							Button
-						</Button>
-					</div>
-				</Card>
-
-				<Card className="space-y-3 p-5">
-					<h2 className="font-semibold">Access</h2>
-					<label className="flex items-start gap-3 text-sm">
-						<input
-							type="checkbox"
-							checked={f.public_access}
-							onChange={(e) => setF({ ...f, public_access: e.target.checked })}
-							className="mt-0.5 size-4 accent-brand-600"
-						/>
-						<span>
-							<span className="font-medium">Let anyone view without signing in</span>
-							<span className="mt-0.5 block text-zinc-500">
-								Visitors can read every KB and client page, read-only. Anyone with the site address can see them, so turn this off if
-								KBs contain anything sensitive. Signing in is still needed to make changes. Share links for single KBs work
-								either way.
-							</span>
-						</span>
-					</label>
-				</Card>
 			</form>
-			<div className="mt-10">
-				<CategorySettings />
-			</div>
+
+			<CategorySettings />
+
+			<Card className="space-y-3 p-5">
+				<h2 className="font-semibold">Access</h2>
+				<label className="flex items-start gap-3 text-sm">
+					<input
+						type="checkbox"
+						checked={f.public_access}
+						onChange={(e) => setF({ ...f, public_access: e.target.checked })}
+						className="mt-0.5 size-4 accent-brand-600"
+					/>
+					<span>
+						<span className="font-medium">Let anyone view without signing in</span>
+						<span className="mt-0.5 block text-zinc-500">
+							Visitors can read every KB and client page, read-only. Anyone with the site address can see them, so turn this off if
+							KBs contain anything sensitive. Signing in is still needed to make changes. Share links for single KBs work
+							either way.
+						</span>
+					</span>
+				</label>
+			</Card>
 		</div>
 	);
 }

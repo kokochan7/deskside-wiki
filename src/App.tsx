@@ -124,7 +124,7 @@ function Shell({ onLogin, onLogout }: { onLogin: () => void; onLogout: () => voi
 	const sidebar = (
 		<div className="flex h-full flex-col">
 			<a href="#/" className="flex items-center gap-2.5 px-5 py-5">
-				<BrandMark className="size-8 shrink-0 rounded-lg" />
+				<BrandMark className="size-8 shrink-0" />
 				<span className="truncate font-semibold tracking-tight">{settings.site_name}</span>
 			</a>
 			<div className="px-3">
@@ -207,7 +207,7 @@ function Shell({ onLogin, onLogout }: { onLogin: () => void; onLogout: () => voi
 				<button onClick={() => setNavOpen(true)} className="rounded-lg p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Open menu">
 					{navOpen ? <X className="size-5" /> : <Menu className="size-5" />}
 				</button>
-				<BrandMark className="size-6 rounded-md" />
+				<BrandMark className="size-6" />
 				<span className="truncate font-semibold">{settings.site_name}</span>
 				<button onClick={() => setPaletteOpen(true)} className="ml-auto rounded-lg p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Search">
 					<Search className="size-5" />

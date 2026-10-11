@@ -26,7 +26,7 @@ export function SharedArticle({ token }: { token: string }) {
 		<div className="min-h-screen">
 			<header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
 				<div className="mx-auto flex max-w-3xl items-center gap-2.5 px-4 py-3 sm:px-8">
-					<BrandMark className="size-7 rounded-md" />
+					<BrandMark className="size-7" />
 					<span className="truncate font-semibold tracking-tight">{settings.site_name}</span>
 				</div>
 			</header>
