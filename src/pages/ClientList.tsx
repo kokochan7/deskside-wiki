@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Building2, Plus, Search } from 'lucide-react';
-import { api, type Client } from '../api';
-import { initials } from '../format';
+import { api, imageUrl, type Client } from '../api';
+import { ClientLogo, LogoPicker } from '../branding';
 import { navigate } from '../router';
 import { canEdit, useUser } from '../session';
 import { Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Spinner, Textarea, useFeedback } from '../components/ui';
@@ -22,7 +22,6 @@ export function ClientList() {
 		<>
 			<PageHeader
 				title="Clients"
-				subtitle="Companies you support, their contacts and client-specific docs."
 				actions={
 					canEdit(user) && (
 						<Button variant="primary" onClick={() => setAdding(true)}>
@@ -41,7 +40,7 @@ export function ClientList() {
 				<Spinner />
 			) : clients!.length === 0 ? (
 				<Empty icon={<Building2 className="size-5" />} title="No clients yet">
-					Add the companies you support to keep their contacts and docs in one place.
+					Add the companies you support to group their docs in one place.
 				</Empty>
 			) : shown.length === 0 ? (
 				<p className="py-10 text-center text-sm text-zinc-500">No clients match “{q}”.</p>
@@ -51,21 +50,14 @@ export function ClientList() {
 						<a key={c.id} href={`#/clients/${c.id}`}>
 							<Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md dark:hover:border-brand-500/50">
 								<div className="flex items-center gap-3">
-									<span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-sm font-semibold text-brand-700 dark:from-brand-500/20 dark:to-brand-500/30 dark:text-brand-200">
-										{initials(c.name)}
-									</span>
+									<ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} />
 									<div className="min-w-0">
 										<div className="truncate font-medium">{c.name}</div>
 										<div className="truncate text-xs text-zinc-500">{c.website || c.email || c.phone || 'No details yet'}</div>
 									</div>
 								</div>
-								<div className="mt-4 flex gap-4 text-xs text-zinc-500">
-									<span>
-										<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.contact_count}</b> {c.contact_count === 1 ? 'contact' : 'contacts'}
-									</span>
-									<span>
-										<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.article_count}</b> {c.article_count === 1 ? 'article' : 'articles'}
-									</span>
+								<div className="mt-4 text-xs text-zinc-500">
+									<b className="font-semibold text-zinc-800 dark:text-zinc-200">{c.article_count}</b> {c.article_count === 1 ? 'article' : 'articles'}
 								</div>
 							</Card>
 						</a>
@@ -77,7 +69,7 @@ export function ClientList() {
 	);
 }
 
-const blank = { name: '', website: '', phone: '', email: '', address: '', notes: '' };
+const blank = { name: '', website: '', phone: '', email: '', address: '', notes: '', logo_image_id: null as string | null };
 
 export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; onClose: () => void; onSaved: (id: number) => void; client?: Client }) {
 	const { toast } = useFeedback();
@@ -86,7 +78,11 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		if (open) {
-			setF(client ? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, notes: client.notes } : blank);
+			setF(
+				client
+					? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, notes: client.notes, logo_image_id: client.logo_image_id }
+					: blank,
+			);
 			setError(null);
 			setBusy(false);
 		}
@@ -110,6 +106,10 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 	return (
 		<Modal open={open} onClose={onClose} title={client ? 'Edit client' : 'Add client'} wide>
 			<form onSubmit={submit} className="space-y-4">
+				<div>
+					<span className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Logo</span>
+					<LogoPicker url={imageUrl(f.logo_image_id)} onChange={(id) => setF({ ...f, logo_image_id: id })} />
+				</div>
 				<Field label="Company name">
 					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
 				</Field>

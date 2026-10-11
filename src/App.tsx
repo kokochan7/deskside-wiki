@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { BookOpen, Building2, LayoutDashboard, LogOut, Menu, Moon, Search, Sun, UserCog, Users, X } from 'lucide-react';
-import { api, setUnauthorizedHandler, type User } from './api';
+import { BookOpen, Building2, LayoutDashboard, LogOut, Menu, Moon, Search, Settings as SettingsIcon, Sun, UserCog, Users, X } from 'lucide-react';
+import { api, setUnauthorizedHandler, type Settings, type User } from './api';
+import { BrandingCtx, BrandMark, DEFAULT_SETTINGS, loadBranding, useBranding } from './branding';
 import { navigate, useRoute } from './router';
 import { cx, FeedbackProvider, Spinner } from './components/ui';
 import { CommandPalette } from './components/CommandPalette';
@@ -15,11 +16,14 @@ import { ClientList } from './pages/ClientList';
 import { ClientView } from './pages/ClientView';
 import { Team } from './pages/Team';
 import { Account } from './pages/Account';
+import { SiteSettings } from './pages/SiteSettings';
 
 
 export default function App() {
 	const [state, setState] = useState<'loading' | 'setup' | 'login' | 'in'>('loading');
 	const [user, setUser] = useState<User | null>(null);
+	const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+	const reloadBranding = useCallback(async () => setSettings(await loadBranding()), []);
 
 	const load = useCallback(async () => {
 		try {
@@ -36,10 +40,12 @@ export default function App() {
 			setUser(null);
 			setState('login');
 		});
+		reloadBranding();
 		load();
-	}, [load]);
+	}, [load, reloadBranding]);
 
 	return (
+		<BrandingCtx.Provider value={{ settings, reload: reloadBranding }}>
 		<FeedbackProvider>
 			{state === 'loading' && <Spinner />}
 			{state === 'setup' && <Setup onDone={load} />}
@@ -56,6 +62,7 @@ export default function App() {
 				</UserCtx.Provider>
 			)}
 		</FeedbackProvider>
+		</BrandingCtx.Provider>
 	);
 }
 
@@ -74,6 +81,7 @@ function useTheme() {
 
 function Shell({ onLogout }: { onLogout: () => void }) {
 	const user = useUser();
+	const { settings } = useBranding();
 	const route = useRoute();
 	const { dark, toggle } = useTheme();
 	const [paletteOpen, setPaletteOpen] = useState(false);
@@ -97,13 +105,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 		{ href: '#/articles', label: 'Knowledge base', icon: <BookOpen className="size-4" />, key: 'articles' },
 		{ href: '#/clients', label: 'Clients', icon: <Building2 className="size-4" />, key: 'clients' },
 		{ href: '#/team', label: 'Team', icon: <Users className="size-4" />, key: 'team', show: user.role === 'admin' },
+		{ href: '#/settings', label: 'Settings', icon: <SettingsIcon className="size-4" />, key: 'settings', show: user.role === 'admin' },
 	];
 
 	const sidebar = (
 		<div className="flex h-full flex-col">
 			<a href="#/" className="flex items-center gap-2.5 px-5 py-5">
-				<img src="/favicon.svg" alt="" className="size-8" />
-				<span className="font-semibold tracking-tight">Deskside KB</span>
+				<BrandMark className="size-8 shrink-0 rounded-lg" />
+				<span className="truncate font-semibold tracking-tight">{settings.site_name}</span>
 			</a>
 			<div className="px-3">
 				<button
@@ -171,7 +180,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 				<button onClick={() => setNavOpen(true)} className="rounded-lg p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Open menu">
 					{navOpen ? <X className="size-5" /> : <Menu className="size-5" />}
 				</button>
-				<span className="font-semibold">Deskside KB</span>
+				<BrandMark className="size-6 rounded-md" />
+				<span className="truncate font-semibold">{settings.site_name}</span>
 				<button onClick={() => setPaletteOpen(true)} className="ml-auto rounded-lg p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Search">
 					<Search className="size-5" />
 				</button>
@@ -198,6 +208,7 @@ function Page({ route }: { route: string[] }) {
 	}
 	if (a === 'clients') return b ? <ClientView id={Number(b)} key={b} /> : <ClientList />;
 	if (a === 'team' && user.role === 'admin') return <Team />;
+	if (a === 'settings' && user.role === 'admin') return <SiteSettings />;
 	if (a === 'account') return <Account />;
 	return <NotFound />;
 }

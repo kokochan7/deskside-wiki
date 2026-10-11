@@ -157,6 +157,55 @@ app.post('/logout', async (c) => {
 	return c.json({ ok: true });
 });
 
+// ---------- branding (readable before sign-in so the login page can show it) ----------
+
+const ACCENTS = ['violet', 'blue', 'teal', 'green', 'orange', 'rose', 'slate'];
+const DEFAULT_SETTINGS = { site_name: 'Deskside KB', accent: 'violet', logo_image_id: '' };
+type Settings = typeof DEFAULT_SETTINGS;
+
+async function getSettings(db: D1Database): Promise<Settings> {
+	const { results } = await db.prepare(`SELECT key, value FROM settings`).all<{ key: keyof Settings; value: string }>();
+	const s = { ...DEFAULT_SETTINGS };
+	for (const r of results) if (r.key in s) s[r.key] = r.value;
+	return s;
+}
+
+app.get('/settings', async (c) => {
+	const s = await getSettings(c.env.DB);
+	return c.json({ site_name: s.site_name, accent: s.accent, logo_url: s.logo_image_id ? `/api/settings/logo/${s.logo_image_id}` : null });
+});
+
+// The site logo is public (it appears on the sign-in page); every other image needs a session.
+app.get('/settings/logo/:id', async (c) => {
+	const s = await getSettings(c.env.DB);
+	if (!s.logo_image_id || c.req.param('id') !== s.logo_image_id) fail(404, 'Logo not found.');
+	return serveImage(c.env.DB, s.logo_image_id, 'public, max-age=31536000, immutable');
+});
+
+async function serveImage(db: D1Database, id: string, cacheControl: string) {
+	if (!/^[0-9a-f]{32}$/.test(id)) fail(404, 'Image not found.');
+	const row = await db.prepare(`SELECT content_type, data FROM images WHERE id = ?`)
+		.bind(id)
+		.first<{ content_type: string; data: number[] | ArrayBuffer }>();
+	if (!row) fail(404, 'Image not found.');
+	return new Response(new Uint8Array(row!.data), {
+		headers: {
+			'Content-Type': row!.content_type,
+			'Cache-Control': cacheControl,
+			'X-Content-Type-Options': 'nosniff',
+			'Content-Security-Policy': "default-src 'none'",
+		},
+	});
+}
+
+async function imageIdOrNull(db: D1Database, v: unknown): Promise<string | null> {
+	if (v == null || v === '') return null;
+	const id = String(v);
+	if (!/^[0-9a-f]{32}$/.test(id) || !(await db.prepare(`SELECT 1 FROM images WHERE id = ?`).bind(id).first()))
+		fail(400, 'That image no longer exists. Please upload it again.');
+	return id;
+}
+
 // Everything below needs a signed-in user.
 app.use('*', requireUser);
 
@@ -186,7 +235,7 @@ app.get('/overview', async (c) => {
 	const [counts, recent, categories] = await db.batch([
 		db.prepare(
 			`SELECT (SELECT COUNT(*) FROM articles) AS articles, (SELECT COUNT(*) FROM clients) AS clients,
-			        (SELECT COUNT(*) FROM contacts) AS contacts, (SELECT COUNT(*) FROM users WHERE active = 1) AS users`,
+			        (SELECT COUNT(*) FROM users WHERE active = 1) AS users`,
 		),
 		db.prepare(
 			`SELECT a.id, a.title, a.category, a.updated_at, c.name AS client_name, u.name AS updated_by_name
@@ -325,31 +374,14 @@ app.post('/images', canEdit, async (c) => {
 	return c.json({ id, url: `/api/images/${id}` }, 201);
 });
 
-app.get('/images/:id', async (c) => {
-	const id = c.req.param('id');
-	if (!/^[0-9a-f]{32}$/.test(id)) fail(404, 'Image not found.');
-	const row = await c.env.DB.prepare(`SELECT content_type, data FROM images WHERE id = ?`)
-		.bind(id)
-		.first<{ content_type: string; data: number[] | ArrayBuffer }>();
-	if (!row) fail(404, 'Image not found.');
-	const bytes = row!.data instanceof ArrayBuffer ? new Uint8Array(row!.data) : new Uint8Array(row!.data);
-	return new Response(bytes, {
-		headers: {
-			'Content-Type': row!.content_type,
-			// Images never change once uploaded; only signed-in users can fetch them.
-			'Cache-Control': 'private, max-age=31536000, immutable',
-			'X-Content-Type-Options': 'nosniff',
-			'Content-Security-Policy': "default-src 'none'",
-		},
-	});
-});
+// Images never change once uploaded; only signed-in users can fetch them.
+app.get('/images/:id', (c) => serveImage(c.env.DB, c.req.param('id'), 'private, max-age=31536000, immutable'));
 
-// ---------- clients & contacts ----------
+// ---------- clients ----------
 
 app.get('/clients', async (c) => {
 	const { results } = await c.env.DB.prepare(
-		`SELECT c.*, (SELECT COUNT(*) FROM contacts WHERE client_id = c.id) AS contact_count,
-		        (SELECT COUNT(*) FROM articles WHERE client_id = c.id) AS article_count
+		`SELECT c.*, (SELECT COUNT(*) FROM articles WHERE client_id = c.id) AS article_count
 		 FROM clients c ORDER BY c.name COLLATE NOCASE`,
 	).all();
 	return c.json(results);
@@ -358,13 +390,12 @@ app.get('/clients', async (c) => {
 app.get('/clients/:id', async (c) => {
 	const id = idParam(c);
 	const db = c.env.DB;
-	const [client, contacts, articles] = await db.batch([
+	const [client, articles] = await db.batch([
 		db.prepare(`SELECT * FROM clients WHERE id = ?`).bind(id),
-		db.prepare(`SELECT * FROM contacts WHERE client_id = ? ORDER BY name COLLATE NOCASE`).bind(id),
 		db.prepare(`SELECT id, title, category, updated_at FROM articles WHERE client_id = ? ORDER BY updated_at DESC`).bind(id),
 	]);
 	if (!client.results[0]) fail(404, 'Client not found.');
-	return c.json({ ...(client.results[0] as object), contacts: contacts.results, articles: articles.results });
+	return c.json({ ...(client.results[0] as object), articles: articles.results });
 });
 
 async function clientFields(c: Context<Env>) {
@@ -376,13 +407,16 @@ async function clientFields(c: Context<Env>) {
 		email: str(b.email, 'Email'),
 		address: str(b.address, 'Address', { max: 500 }),
 		notes: str(b.notes, 'Notes', { max: 20_000 }),
+		logo_image_id: await imageIdOrNull(c.env.DB, b.logo_image_id),
 	};
 }
 
 app.post('/clients', canEdit, async (c) => {
 	const f = await clientFields(c);
-	const res = await c.env.DB.prepare(`INSERT INTO clients (name, website, phone, email, address, notes) VALUES (?, ?, ?, ?, ?, ?)`)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes)
+	const res = await c.env.DB.prepare(
+		`INSERT INTO clients (name, website, phone, email, address, notes, logo_image_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	)
+		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes, f.logo_image_id)
 		.run();
 	return c.json({ id: res.meta.last_row_id }, 201);
 });
@@ -391,9 +425,9 @@ app.put('/clients/:id', canEdit, async (c) => {
 	const id = idParam(c);
 	const f = await clientFields(c);
 	const res = await c.env.DB.prepare(
-		`UPDATE clients SET name = ?, website = ?, phone = ?, email = ?, address = ?, notes = ?, updated_at = datetime('now') WHERE id = ?`,
+		`UPDATE clients SET name = ?, website = ?, phone = ?, email = ?, address = ?, notes = ?, logo_image_id = ?, updated_at = datetime('now') WHERE id = ?`,
 	)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes, id)
+		.bind(f.name, f.website, f.phone, f.email, f.address, f.notes, f.logo_image_id, id)
 		.run();
 	if (!res.meta.changes) fail(404, 'Client not found.');
 	return c.json({ id });
@@ -412,40 +446,16 @@ app.delete('/clients/:id', canEdit, async (c) => {
 	return c.json({ ok: true });
 });
 
-async function contactFields(c: Context<Env>) {
+// ---------- settings (admin only) ----------
+
+app.put('/settings', adminOnly, async (c) => {
 	const b = await body(c);
-	return {
-		name: str(b.name, 'Name', { required: true }),
-		title: str(b.title, 'Job title'),
-		email: str(b.email, 'Email'),
-		phone: str(b.phone, 'Phone', { max: 60 }),
-		notes: str(b.notes, 'Notes', { max: 5000 }),
-	};
-}
-
-app.post('/clients/:id/contacts', canEdit, async (c) => {
-	const clientId = idParam(c);
-	if (!(await c.env.DB.prepare(`SELECT 1 FROM clients WHERE id = ?`).bind(clientId).first())) fail(404, 'Client not found.');
-	const f = await contactFields(c);
-	const res = await c.env.DB.prepare(`INSERT INTO contacts (client_id, name, title, email, phone, notes) VALUES (?, ?, ?, ?, ?, ?)`)
-		.bind(clientId, f.name, f.title, f.email, f.phone, f.notes)
-		.run();
-	return c.json({ id: res.meta.last_row_id }, 201);
-});
-
-app.put('/contacts/:id', canEdit, async (c) => {
-	const id = idParam(c);
-	const f = await contactFields(c);
-	const res = await c.env.DB.prepare(`UPDATE contacts SET name = ?, title = ?, email = ?, phone = ?, notes = ? WHERE id = ?`)
-		.bind(f.name, f.title, f.email, f.phone, f.notes, id)
-		.run();
-	if (!res.meta.changes) fail(404, 'Contact not found.');
-	return c.json({ id });
-});
-
-app.delete('/contacts/:id', canEdit, async (c) => {
-	const res = await c.env.DB.prepare(`DELETE FROM contacts WHERE id = ?`).bind(idParam(c)).run();
-	if (!res.meta.changes) fail(404, 'Contact not found.');
+	const site_name = str(b.site_name, 'Site name', { required: true, max: 60 });
+	const accent = String(b.accent ?? 'violet');
+	if (!ACCENTS.includes(accent)) fail(400, 'Choose one of the listed colours.');
+	const logo = (await imageIdOrNull(c.env.DB, b.logo_image_id)) ?? '';
+	const put = c.env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+	await c.env.DB.batch([put.bind('site_name', site_name), put.bind('accent', accent), put.bind('logo_image_id', logo)]);
 	return c.json({ ok: true });
 });
 

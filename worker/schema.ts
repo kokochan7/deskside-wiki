@@ -76,6 +76,14 @@ const MIGRATIONS: string[][] = [
 			created_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)`,
 	],
+	[
+		// Client logos and site-wide branding (name, logo, accent colour) set by admins.
+		`ALTER TABLE clients ADD COLUMN logo_image_id TEXT`,
+		`CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

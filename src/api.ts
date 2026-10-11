@@ -17,7 +17,6 @@ export type Article = ArticleSummary & {
 	created_at: string;
 	created_by_name: string | null;
 };
-export type Contact = { id: number; client_id: number; name: string; title: string; email: string; phone: string; notes: string };
 export type Client = {
 	id: number;
 	name: string;
@@ -26,15 +25,20 @@ export type Client = {
 	email: string;
 	address: string;
 	notes: string;
-	contact_count?: number;
+	logo_image_id: string | null;
 	article_count?: number;
 };
-export type ClientDetail = Client & { contacts: Contact[]; articles: { id: number; title: string; category: string; updated_at: string }[] };
+export type ClientDetail = Client & { articles: { id: number; title: string; category: string; updated_at: string }[] };
 export type Overview = {
-	counts: { articles: number; clients: number; contacts: number; users: number };
+	counts: { articles: number; clients: number; users: number };
 	recent: { id: number; title: string; category: string; updated_at: string; client_name: string | null; updated_by_name: string | null }[];
 	categories: { category: string; count: number }[];
 };
+
+export type Accent = 'violet' | 'blue' | 'teal' | 'green' | 'orange' | 'rose' | 'slate';
+export type Settings = { site_name: string; accent: Accent; logo_url: string | null };
+
+export const imageUrl = (id: string | null | undefined) => (id ? `/api/images/${id}` : null);
 
 export class ApiError extends Error {
 	constructor(public status: number, message: string) {
