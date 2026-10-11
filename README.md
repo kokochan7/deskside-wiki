@@ -26,10 +26,10 @@ After the first deploy, open the site. It asks you to create the first admin acc
 
 ## Deploying
 
-Cloudflare builds and deploys every push to `main` (Workers & Pages → deskside-wiki, connected to this repo). The deploy command is `npx wrangler deploy`, which:
+Cloudflare builds and deploys every push to `main` (Workers & Pages → wiki, connected to this repo; live at https://wiki.kenny-kao.workers.dev). The deploy command is `npx wrangler deploy`, which:
 
 1. runs `npm run build` (configured in `wrangler.jsonc`),
-2. creates the `deskside-wiki` D1 database automatically on the first deploy,
+2. connects the `deskside-wiki` D1 database (created automatically on the first deploy; it kept that name when the Worker was renamed to `wiki`),
 3. uploads the Worker and the built app.
 
 The app creates its own database tables on first request. Schema changes go in `worker/schema.ts` as a new entry in `MIGRATIONS`.
