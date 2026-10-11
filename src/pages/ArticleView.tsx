@@ -97,15 +97,6 @@ export function ArticleView({ id }: { id: number }) {
 			<Card className="mt-6 p-6 sm:p-8">
 				{article.body.trim() ? <Markdown source={article.body} /> : <p className="text-sm text-zinc-500">This KB is empty.</p>}
 			</Card>
-			{article.tags && (
-				<div className="mt-4 flex flex-wrap gap-1.5">
-					{article.tags.split(',').map((t) => (
-						<a key={t} href={`#/articles?q=${encodeURIComponent(t.trim())}`}>
-							<Badge>#{t.trim()}</Badge>
-						</a>
-					))}
-				</div>
-			)}
 			<ShareDialog
 				open={sharing}
 				onClose={() => setSharing(false)}

@@ -26,3 +26,48 @@ body {
 mark {
 	@apply rounded bg-brand-200/70 px-0.5 text-inherit dark:bg-brand-500/40;
 }
+
+/* Rich text editor (Tiptap) */
+.tiptap p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	float: left;
+	height: 0;
+	pointer-events: none;
+	@apply text-zinc-400 dark:text-zinc-600;
+}
+.tiptap ul[data-type='taskList'] {
+	@apply list-none pl-0;
+}
+.tiptap ul[data-type='taskList'] li {
+	@apply my-1 flex items-start gap-2 pl-0;
+}
+.tiptap ul[data-type='taskList'] li > label {
+	@apply mt-[0.3em] flex-none select-none;
+}
+.tiptap ul[data-type='taskList'] li > label input {
+	@apply size-4 accent-brand-600;
+}
+.tiptap ul[data-type='taskList'] li > div {
+	@apply min-w-0 flex-1;
+}
+.tiptap ul[data-type='taskList'] li > div > p {
+	@apply my-0;
+}
+.tiptap table td,
+.tiptap table th {
+	@apply relative border border-zinc-200 px-2 py-1 align-top dark:border-zinc-700;
+}
+.tiptap table p {
+	@apply my-0;
+}
+.tiptap .selectedCell::after {
+	content: '';
+	pointer-events: none;
+	@apply absolute inset-0 bg-brand-500/15;
+}
+.tiptap img.ProseMirror-selectednode {
+	@apply ring-2 ring-brand-500;
+}
+.tiptap li > p {
+	@apply my-0;
+}

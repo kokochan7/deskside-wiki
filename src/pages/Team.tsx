@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Pencil, Trash2, UserPlus } from 'lucide-react';
+import { Pencil, Search, Trash2, UserPlus } from 'lucide-react';
 import { api, type Role, type TeamMember } from '../api';
 import { initials, timeAgo } from '../format';
 import { useUser } from '../session';
@@ -16,6 +16,7 @@ export function Team() {
 	const { confirm, toast } = useFeedback();
 	const [users, setUsers] = useState<TeamMember[] | null>(null);
 	const [editing, setEditing] = useState<TeamMember | 'new' | null>(null);
+	const [q, setQ] = useState('');
 
 	const load = useCallback(() => api.get<TeamMember[]>('/users').then(setUsers).catch(() => setUsers([])), []);
 	useEffect(() => {
@@ -43,36 +44,42 @@ export function Team() {
 					</Button>
 				}
 			/>
+			{users && users.length > 1 && (
+				<div className="relative mb-5 max-w-md">
+					<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+					<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter user accounts…" className="pl-9" />
+				</div>
+			)}
 			{!users ? (
 				<Spinner />
 			) : (
-				<Card className="divide-y divide-zinc-100 dark:divide-zinc-800">
-					{users.map((u) => (
-						<div key={u.id} className="flex items-center gap-3 px-5 py-4">
-							<span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-semibold text-white">
-								{initials(u.username)}
-							</span>
-							<div className="min-w-0 flex-1">
-								<div className="flex flex-wrap items-center gap-2 font-medium">
-									{u.username}
-									{u.id === me.id && <span className="text-xs font-normal text-zinc-400">(you)</span>}
+				<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
+					{users
+						.filter((u) => u.username.includes(q.trim().toLowerCase()))
+						.map((u) => (
+							<div key={u.id} className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+								<span className="grid size-6 shrink-0 place-items-center rounded-md bg-gradient-to-br from-brand-400 to-brand-700 text-[10px] font-semibold text-white">
+									{initials(u.username)}
+								</span>
+								<button type="button" onClick={() => setEditing(u)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+									<span className="truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{u.username}</span>
+									{u.id === me.id && <span className="text-xs text-zinc-400">(you)</span>}
 									{!u.active && <Badge tone="amber">Disabled</Badge>}
+								</button>
+								<span className="hidden w-48 truncate text-xs text-zinc-500 md:inline">Last sign-in {timeAgo(u.last_login_at)}</span>
+								<span className="w-24 shrink-0 text-xs capitalize text-zinc-500">{u.role}</span>
+								<div className="flex w-16 shrink-0 justify-end">
+									<button type="button" onClick={() => setEditing(u)} title="Edit" aria-label={`Edit ${u.username}`} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+										<Pencil className="size-4" />
+									</button>
+									{u.id !== me.id && (
+										<button type="button" onClick={() => remove(u)} title="Remove" aria-label={`Remove ${u.username}`} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800">
+											<Trash2 className="size-4" />
+										</button>
+									)}
 								</div>
 							</div>
-							<span className="hidden text-xs text-zinc-400 md:inline">Last sign-in {timeAgo(u.last_login_at)}</span>
-							<Badge tone={u.role === 'admin' ? 'brand' : u.role === 'technician' ? 'green' : 'zinc'}>
-								<span className="capitalize">{u.role}</span>
-							</Badge>
-							<Button size="sm" variant="ghost" onClick={() => setEditing(u)} title="Edit">
-								<Pencil className="size-4" />
-							</Button>
-							{u.id !== me.id && (
-								<Button size="sm" variant="ghost" onClick={() => remove(u)} title="Remove" className="hover:text-red-600">
-									<Trash2 className="size-4" />
-								</Button>
-							)}
-						</div>
-					))}
+						))}
 				</Card>
 			)}
 			<UserForm user={editing} onClose={() => setEditing(null)} onSaved={load} />

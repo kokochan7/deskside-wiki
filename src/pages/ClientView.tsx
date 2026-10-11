@@ -91,7 +91,7 @@ export function ClientView({ id }: { id: number }) {
 						text={client.notes}
 						canEdit={isAdmin}
 						empty={isAdmin ? 'Nothing here yet. Add contract hours, key contacts, escalation paths and other important details.' : 'No information yet.'}
-						placeholder={'## Key contacts\n- Office manager: ...\n\n## Support hours\n...'}
+						placeholder="Key contacts, support hours, systems, escalation paths…"
 						onSaved={(notes) => setClient({ ...client, notes })}
 					/>
 					<ClientSection
@@ -102,7 +102,7 @@ export function ClientView({ id }: { id: number }) {
 						text={client.new_hire}
 						canEdit={isAdmin}
 						empty={isAdmin ? 'Nothing here yet. Write the steps for setting up a new employee at this client.' : 'No new hire procedure yet.'}
-						placeholder={'1. Create the Microsoft 365 account\n2. Assign licences\n3. Add to groups: ...\n- [ ] Laptop ready'}
+						placeholder="The steps for setting up a new employee at this client…"
 						onSaved={(new_hire) => setClient({ ...client, new_hire })}
 					/>
 				</div>
