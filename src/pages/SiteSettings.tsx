@@ -63,7 +63,7 @@ export function SiteSettings() {
 						<p className="mt-2 text-xs text-zinc-500">Also used as the browser tab icon. Without a logo, the default icon is shown.</p>
 					</div>
 					<div>
-						<span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Accent colour</span>
+						<span className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Accent color</span>
 						<div className="flex flex-wrap gap-2">
 							{(Object.keys(ACCENTS) as Accent[]).map((a) => (
 								<button
