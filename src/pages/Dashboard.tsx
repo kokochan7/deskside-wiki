@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Building2, Contact, FilePlus2, Users } from 'lucide-react';
+import { BookOpen, Building2, FilePlus2, Users } from 'lucide-react';
 import { api, type Overview } from '../api';
 import { timeAgo } from '../format';
 import { canEdit, useUser } from '../session';
@@ -17,7 +17,6 @@ export function Dashboard() {
 	const stats = [
 		{ label: 'Articles', value: data.counts.articles, icon: <BookOpen className="size-5" />, href: '#/articles' },
 		{ label: 'Clients', value: data.counts.clients, icon: <Building2 className="size-5" />, href: '#/clients' },
-		{ label: 'Client contacts', value: data.counts.contacts, icon: <Contact className="size-5" />, href: '#/clients' },
 		{ label: 'Team members', value: data.counts.users, icon: <Users className="size-5" />, href: user.role === 'admin' ? '#/team' : undefined },
 	];
 	const hour = new Date().getHours();
@@ -27,7 +26,6 @@ export function Dashboard() {
 		<>
 			<PageHeader
 				title={`${greeting}, ${user.name.split(' ')[0]}`}
-				subtitle="Here's what's happening in your knowledge base."
 				actions={
 					canEdit(user) && (
 						<Button variant="primary" onClick={() => navigate('/articles/new')}>
@@ -36,7 +34,7 @@ export function Dashboard() {
 					)
 				}
 			/>
-			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 				{stats.map((s) => {
 					const inner = (
 						<Card className="p-5 transition hover:border-brand-300 dark:hover:border-brand-500/50">

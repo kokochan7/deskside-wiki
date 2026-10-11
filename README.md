@@ -1,18 +1,19 @@
 # Deskside KB
 
-Internal IT knowledge base for technicians. Sign in, write and edit KB articles in Markdown, keep client companies and their contacts, and manage who on the team can access it.
+Internal IT knowledge base for technicians. Sign in, write and edit KB articles in Markdown, keep a list of client companies, and manage who on the team can access it.
 
 Runs entirely on Cloudflare: a Worker serves the API and the React app, and a D1 database stores the data.
 
 ## Features
 
-- **Knowledge base:** create, edit and delete articles with a Markdown editor (toolbar, live split preview, templates, Ctrl/⌘+S to save). Categories, tags, and an optional client per article.
+- **Knowledge base:** a compact article list with every client in a sidebar for one-click filtering. Create, edit and delete articles with a Markdown editor (toolbar, live split preview, templates, Ctrl/⌘+S to save). Categories, tags, and an optional client per article.
 - **Images:** paste screenshots straight into the editor, drag them in, or use the image button. Large images are shrunk in the browser and stored in D1, and only signed-in users can see them. Click an image in an article to zoom.
 - **Search:** full-text search across titles, bodies and tags, plus a ⌘K / Ctrl+K command palette.
-- **Clients:** company details, notes, contacts, and the articles that belong to each client.
+- **Clients:** company details, notes, a logo, and the articles that belong to each client.
+- **Settings (admins):** site name, logo (also the browser tab icon) and accent colour. The name and logo also show on the sign-in page.
 - **Team:** admins add technicians, set roles, reset passwords and disable accounts.
   - **Admin:** everything, including the team.
-  - **Technician:** create, edit and delete articles, clients and contacts.
+  - **Technician:** create, edit and delete articles and clients.
   - **Viewer:** read-only.
 - Light and dark mode, mobile layout.
 

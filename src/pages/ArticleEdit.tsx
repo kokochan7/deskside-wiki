@@ -129,7 +129,7 @@ export function ArticleEdit({ id }: { id?: number }) {
 		await Promise.all(
 			images.map(async (file, i) => {
 				try {
-					swap(tokens[i], `![${altText(file)}](${await uploadImage(file)})`);
+					swap(tokens[i], `![${altText(file)}](${(await uploadImage(file)).url})`);
 				} catch (e) {
 					swap(tokens[i], '');
 					toast((e as Error).message, 'error');

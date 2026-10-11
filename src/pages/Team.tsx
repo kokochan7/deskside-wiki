@@ -7,7 +7,7 @@ import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select
 
 const ROLE_INFO: Record<Role, string> = {
 	admin: 'Full access, including managing the team.',
-	technician: 'Can create, edit and delete articles, clients and contacts.',
+	technician: 'Can create, edit and delete articles and clients.',
 	viewer: 'Read-only access.',
 };
 
@@ -37,7 +37,6 @@ export function Team() {
 		<>
 			<PageHeader
 				title="Team"
-				subtitle="Who can sign in, and what they can do."
 				actions={
 					<Button variant="primary" onClick={() => setEditing('new')}>
 						<UserPlus className="size-4" /> Add member

@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { Button, ErrorNote, Field, Input } from '../components/ui';
+import { BrandMark, useBranding } from '../branding';
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
 	return (
@@ -8,7 +9,7 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle: stri
 			<div className="pointer-events-none absolute -top-40 left-1/2 h-[500px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-400/30 via-fuchsia-400/20 to-sky-400/30 blur-3xl dark:from-brand-600/25 dark:via-fuchsia-600/10 dark:to-sky-600/20" />
 			<div className="relative w-full max-w-sm">
 				<div className="mb-8 text-center">
-					<img src="/favicon.svg" alt="" className="mx-auto mb-4 size-12" />
+					<BrandMark className="mx-auto mb-4 size-12 rounded-xl" />
 					<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
 					<p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
 				</div>
@@ -36,6 +37,7 @@ function useSubmit(fn: () => Promise<unknown>) {
 }
 
 export function Login({ onDone }: { onDone: () => void }) {
+	const { settings } = useBranding();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const { busy, error, submit } = useSubmit(async () => {
@@ -43,7 +45,7 @@ export function Login({ onDone }: { onDone: () => void }) {
 		onDone();
 	});
 	return (
-		<AuthCard title="Welcome back" subtitle="Sign in to the Deskside knowledge base">
+		<AuthCard title="Welcome back" subtitle={`Sign in to ${settings.site_name}`}>
 			<form onSubmit={submit} className="space-y-4">
 				<Field label="Email">
 					<Input type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
