@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import Image from '@tiptap/extension-image';
 import Paragraph from '@tiptap/extension-paragraph';
+import { Underline } from '@tiptap/extension-underline';
 import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
@@ -34,6 +35,7 @@ import {
 	Redo2,
 	Strikethrough,
 	Table,
+	Underline as UnderlineIcon,
 	Undo2,
 	type LucideIcon,
 } from 'lucide-react';
@@ -69,7 +71,8 @@ export function RichEditor({
 	const editor = useEditor({
 		extensions: [
 			// Headings no longer have buttons, but older KBs use them, so they still load and save.
-			StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: { openOnClick: false, autolink: true }, paragraph: false }),
+			StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: { openOnClick: false, autolink: true }, paragraph: false, underline: false }),
+			HtmlUnderline,
 			IndentParagraph,
 			StyledText,
 			Color,
@@ -168,6 +171,8 @@ const ResizableImage = Image.extend({
 
 // Indented and aligned paragraphs. Markdown has neither, so such a paragraph is saved as
 // <p data-indent="2" style="text-align: center">…</p>, which the reader shows as is (indent margins are in index.css).
+// A row split off a paragraph to indent or align it on its own is marked data-row: it keeps the tight spacing of a
+// line break instead of the gap between paragraphs.
 const MAX_INDENT = 6;
 const IndentParagraph = Paragraph.extend({
 	addAttributes() {
@@ -177,18 +182,29 @@ const IndentParagraph = Paragraph.extend({
 				parseHTML: (el) => Math.min(MAX_INDENT, Math.max(0, Number(el.getAttribute('data-indent')) || 0)),
 				renderHTML: (attrs) => (attrs.indent ? { 'data-indent': attrs.indent } : {}),
 			},
+			row: {
+				default: false,
+				parseHTML: (el) => el.hasAttribute('data-row'),
+				renderHTML: (attrs) => (attrs.row ? { 'data-row': '' } : {}),
+			},
 		};
 	},
 	renderMarkdown(node, h, ctx) {
-		const { indent, textAlign } = node.attrs ?? {};
+		const { indent, textAlign, row } = node.attrs ?? {};
 		const align = textAlign && textAlign !== 'left' ? textAlign : null;
-		if (!indent && !align) return this.parent?.(node, h, ctx) ?? '';
-		const attrs = [indent && ` data-indent="${indent}"`, align && ` style="text-align: ${align}"`].filter(Boolean).join('');
+		if (!indent && !align && !row) return this.parent?.(node, h, ctx) ?? '';
+		const attrs = [row && ' data-row', indent && ` data-indent="${indent}"`, align && ` style="text-align: ${align}"`].filter(Boolean).join('');
 		return `<p${attrs}>${inlineHtml(h.renderChildren(node.content ?? []))}</p>`;
 	},
 });
 
-// Text colour and font size, saved as <span style="color: …; font-size: …">. It ranks below bold, links etc. so the
+// Underline has no Markdown either; save it as <u>…</u>, ranked just outside the color/size span.
+const HtmlUnderline = Underline.extend({
+	priority: 60,
+	renderMarkdown: (node, h) => `<u>${h.renderChildren(node)}</u>`,
+});
+
+// Text color and font size, saved as <span style="color: …; font-size: …">. It ranks below bold, links etc. so the
 // span always sits innermost (**<span>…</span>**), which is the form that reads back in.
 const StyledText = TextStyle.extend({
 	priority: 50,
@@ -228,6 +244,7 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 			canOutdent: canIndent(e, -1),
 			bold: e.isActive('bold'),
 			italic: e.isActive('italic'),
+			underline: e.isActive('underline'),
 			strike: e.isActive('strike'),
 			code: e.isActive('code'),
 			link: e.isActive('link'),
@@ -256,6 +273,7 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 		'sep',
 		{ icon: Bold, label: 'Bold', run: () => chain().toggleBold().run(), active: s.bold },
 		{ icon: Italic, label: 'Italic', run: () => chain().toggleItalic().run(), active: s.italic },
+		{ icon: UnderlineIcon, label: 'Underline', run: () => chain().toggleUnderline().run(), active: s.underline },
 		{ icon: Strikethrough, label: 'Strikethrough', run: () => chain().toggleStrike().run(), active: s.strike },
 		{ icon: Code, label: 'Code', run: () => chain().toggleCode().run(), active: s.code },
 		{ icon: Link2, label: 'Link', run: setLink, active: s.link },
@@ -344,8 +362,13 @@ function splitOffSelectedRows(tr: Transaction) {
 		});
 		if (cut !== null) cuts.push(cut);
 	}
-	// Last first, so earlier positions stay valid. The break itself becomes the paragraph boundary.
-	for (const pos of cuts.sort((x, y) => y - x)) tr.delete(pos, pos + 1).split(pos);
+	// Last first, so earlier positions stay valid. The break itself becomes the paragraph boundary, and the part after
+	// it is marked as a row so no paragraph gap opens up.
+	for (const pos of cuts.sort((x, y) => y - x)) {
+		tr.delete(pos, pos + 1);
+		const para = tr.doc.resolve(pos).parent;
+		tr.split(pos, 1, [{ type: para.type, attrs: { ...para.attrs, row: true } }]);
+	}
 }
 function updateRows(e: Editor, attrs: (node: ProseMirrorNode) => Record<string, unknown>) {
 	e.chain()
@@ -419,8 +442,8 @@ function ColorPicker({ editor, value }: { editor: Editor; value: string }) {
 				type="button"
 				onMouseDown={(e) => e.preventDefault()}
 				onClick={() => setOpen((o) => !o)}
-				title="Text colour"
-				aria-label="Text colour"
+				title="Text Color"
+				aria-label="Text Color"
 				aria-expanded={open}
 				className={cx(
 					'flex flex-col items-center rounded-md px-1.5 pt-1 pb-0.5',
@@ -437,8 +460,8 @@ function ColorPicker({ editor, value }: { editor: Editor; value: string }) {
 							type="button"
 							onMouseDown={(e) => e.preventDefault()}
 							onClick={() => pick(null)}
-							title="Default colour"
-							aria-label="Default colour"
+							title="Default color"
+							aria-label="Default color"
 							className={cx(swatch, 'border border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-800', !value && 'ring-2 ring-zinc-900 dark:ring-white')}
 						>
 							<span className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">A</span>
