@@ -84,6 +84,11 @@ const MIGRATIONS: string[][] = [
 			value TEXT NOT NULL
 		)`,
 	],
+	[
+		// Public share links for single articles.
+		`ALTER TABLE articles ADD COLUMN share_token TEXT`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS articles_share_token ON articles (share_token)`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

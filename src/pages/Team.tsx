@@ -6,8 +6,8 @@ import { useUser } from '../session';
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, useFeedback } from '../components/ui';
 
 const ROLE_INFO: Record<Role, string> = {
-	admin: 'Full access, including managing the team.',
-	technician: 'Can create, edit and delete articles and clients.',
+	admin: 'Full access, including deleting and managing user accounts.',
+	technician: 'Can create and edit articles and clients, but not delete them.',
 	viewer: 'Read-only access.',
 };
 
@@ -23,7 +23,7 @@ export function Team() {
 	}, [load]);
 
 	const remove = async (u: TeamMember) => {
-		if (!(await confirm('Remove team member?', `${u.name} will lose access immediately. Articles they wrote are kept.`, 'Remove'))) return;
+		if (!(await confirm('Remove user account?', `${u.name} will lose access immediately. Articles they wrote are kept.`, 'Remove'))) return;
 		try {
 			await api.del(`/users/${u.id}`);
 			toast(`${u.name} removed`);
@@ -36,10 +36,10 @@ export function Team() {
 	return (
 		<>
 			<PageHeader
-				title="Team"
+				title="User Accounts"
 				actions={
 					<Button variant="primary" onClick={() => setEditing('new')}>
-						<UserPlus className="size-4" /> Add member
+						<UserPlus className="size-4" /> Add user
 					</Button>
 				}
 			/>
@@ -111,7 +111,7 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 	};
 
 	return (
-		<Modal open={!!user} onClose={onClose} title={isNew ? 'Add team member' : 'Edit team member'}>
+		<Modal open={!!user} onClose={onClose} title={isNew ? 'Add user account' : 'Edit user account'}>
 			<form onSubmit={submit} className="space-y-4">
 				<Field label="Name">
 					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
@@ -141,7 +141,7 @@ function UserForm({ user, onClose, onSaved }: { user: TeamMember | 'new' | null;
 						Cancel
 					</Button>
 					<Button variant="primary" loading={busy}>
-						{isNew ? 'Add member' : 'Save'}
+						{isNew ? 'Add user' : 'Save'}
 					</Button>
 				</div>
 			</form>

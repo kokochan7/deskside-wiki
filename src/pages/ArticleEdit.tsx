@@ -16,7 +16,8 @@ type Form = { title: string; body: string; category: string; tags: string; clien
 
 export function ArticleEdit({ id }: { id?: number }) {
 	const { toast } = useFeedback();
-	const [form, setForm] = useState<Form | null>(id ? null : { title: '', body: '', category: '', tags: '', client_id: query().get('client') ?? '' });
+	const copyFrom = id ? null : query().get('copy');
+	const [form, setForm] = useState<Form | null>(id || copyFrom ? null : { title: '', body: '', category: '', tags: '', client_id: query().get('client') ?? '' });
 	const [initial, setInitial] = useState<string>('');
 	const [categories, setCategories] = useState<string[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
@@ -33,10 +34,11 @@ export function ArticleEdit({ id }: { id?: number }) {
 	useEffect(() => {
 		api.get<string[]>('/categories').then(setCategories).catch(() => {});
 		api.get<Client[]>('/clients').then(setClients).catch(() => {});
-		if (id)
-			api.get<Article>(`/articles/${id}`)
+		if (id || copyFrom)
+			api.get<Article>(`/articles/${id ?? copyFrom}`)
 				.then((a) => {
-					const f = { title: a.title, body: a.body, category: a.category, tags: a.tags, client_id: a.client_id ? String(a.client_id) : '' };
+					// Copying keeps every field so technicians only change what differs.
+					const f = { title: id ? a.title : `${a.title} (copy)`, body: a.body, category: a.category, tags: a.tags, client_id: a.client_id ? String(a.client_id) : '' };
 					setForm(f);
 					setInitial(JSON.stringify(f));
 				})

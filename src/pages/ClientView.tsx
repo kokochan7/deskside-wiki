@@ -70,9 +70,11 @@ export function ClientView({ id }: { id: number }) {
 						<Button onClick={() => setEditing(true)}>
 							<Pencil className="size-4" /> Edit
 						</Button>
-						<Button variant="ghost" onClick={remove} title="Delete client" className="hover:text-red-600">
-							<Trash2 className="size-4" />
-						</Button>
+						{user.role === 'admin' && (
+							<Button variant="ghost" onClick={remove} title="Delete client" className="hover:text-red-600">
+								<Trash2 className="size-4" />
+							</Button>
+						)}
 					</div>
 				)}
 			</div>

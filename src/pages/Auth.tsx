@@ -36,7 +36,7 @@ function useSubmit(fn: () => Promise<unknown>) {
 	return { busy, error, submit };
 }
 
-export function Login({ onDone }: { onDone: () => void }) {
+export function Login({ onDone, onBrowse }: { onDone: () => void; onBrowse?: () => void }) {
 	const { settings } = useBranding();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
@@ -58,6 +58,11 @@ export function Login({ onDone }: { onDone: () => void }) {
 					Sign in
 				</Button>
 				<p className="text-center text-xs text-zinc-500">Forgot your password? Ask an admin to reset it.</p>
+				{onBrowse && (
+					<button type="button" onClick={onBrowse} className="block w-full text-center text-sm font-medium text-brand-600 hover:underline">
+						Continue without signing in
+					</button>
+				)}
 			</form>
 		</AuthCard>
 	);

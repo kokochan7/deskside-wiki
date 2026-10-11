@@ -51,7 +51,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 			.slice(0, 5)
 			.forEach((c) => list.push({ key: 'c' + c.id, icon: <Building2 className="size-4" />, title: c.name, sub: 'Client', go: go(`/clients/${c.id}`) }));
 		if (canEdit(user))
-			list.push({ key: 'new', icon: <FilePlus2 className="size-4" />, title: 'New article', sub: 'Create', go: go('/articles/new') });
+			list.push({ key: 'new', icon: <FilePlus2 className="size-4" />, title: 'Create New KB', sub: 'Create', go: go('/articles/new') });
 		return list;
 	}, [articles, clients, q, user, onClose]);
 

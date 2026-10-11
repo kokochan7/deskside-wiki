@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'technician' | 'viewer';
-export type User = { id: number; email: string; name: string; role: Role };
+export type User = { id: number; email: string; name: string; role: Role; guest?: boolean };
 export type TeamMember = User & { active: number; created_at: string; last_login_at: string | null };
 export type ArticleSummary = {
 	id: number;
@@ -16,6 +16,7 @@ export type Article = ArticleSummary & {
 	body: string;
 	created_at: string;
 	created_by_name: string | null;
+	share_token?: string | null;
 };
 export type Client = {
 	id: number;
@@ -36,7 +37,7 @@ export type Overview = {
 };
 
 export type Accent = 'violet' | 'blue' | 'teal' | 'green' | 'orange' | 'rose' | 'slate';
-export type Settings = { site_name: string; accent: Accent; logo_url: string | null };
+export type Settings = { site_name: string; accent: Accent; logo_url: string | null; public_access: boolean };
 
 export const imageUrl = (id: string | null | undefined) => (id ? `/api/images/${id}` : null);
 
