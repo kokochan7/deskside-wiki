@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "deskside-wiki",
+	"name": "wiki",
 	"main": "./worker/index.ts",
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_compat"],
@@ -12,7 +12,9 @@
 		"not_found_handling": "single-page-application",
 		"run_worker_first": ["/api/*"]
 	},
-	// The database is created automatically on first deploy. The app sets up its own tables.
+	// The database was created automatically on the first deploy and the app sets up its own tables.
+	// It keeps its original name: Wrangler connects to the existing database with this name, so renaming
+	// the Worker doesn't lose any data.
 	"d1_databases": [{ "binding": "DB", "database_name": "deskside-wiki" }],
 	"observability": { "enabled": true }
 }
