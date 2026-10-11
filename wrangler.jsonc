@@ -1,12 +1,18 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "deskside-wiki",
+	"main": "./worker/index.ts",
 	"compatibility_date": "2026-10-01",
-	// Build the static site before every `wrangler deploy`.
+	"compatibility_flags": ["nodejs_compat"],
+	// Build the React app before every `wrangler deploy` (used by Cloudflare's Git builds).
 	"build": { "command": "npm run build" },
-	// Serve the built site as static assets (no Worker script needed).
 	"assets": {
 		"directory": "./dist",
-		"not_found_handling": "404-page"
-	}
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*"]
+	},
+	// The database is created automatically on first deploy. The app sets up its own tables.
+	"d1_databases": [{ "binding": "DB", "database_name": "deskside-wiki" }],
+	"observability": { "enabled": true }
 }
