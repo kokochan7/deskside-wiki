@@ -81,55 +81,48 @@ export function ClientView({ id }: { id: number }) {
 				)}
 			</div>
 
-			<div className="grid gap-6 lg:grid-cols-3">
-				<div className="space-y-6 lg:col-span-2">
-					<ClientSection
-						clientId={client.id}
-						section="info"
-						title="Information"
-						icon={<Info className="size-5" />}
-						text={client.notes}
-						canEdit={isAdmin}
-						empty={isAdmin ? 'Nothing here yet. Add contract hours, key contacts, escalation paths and other important details.' : 'No information yet.'}
-						placeholder="Key contacts, support hours, systems, escalation paths…"
-						onSaved={(notes) => setClient({ ...client, notes })}
-					/>
-					<ClientSection
-						clientId={client.id}
-						section="new-hire"
-						title="New Hire Procedure"
-						icon={<UserPlus className="size-5" />}
-						text={client.new_hire}
-						canEdit={isAdmin}
-						empty={isAdmin ? 'Nothing here yet. Write the steps for setting up a new employee at this client.' : 'No new hire procedure yet.'}
-						placeholder="The steps for setting up a new employee at this client…"
-						onSaved={(new_hire) => setClient({ ...client, new_hire })}
-					/>
-				</div>
+			<Card className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 text-sm">
+				{details.length === 0 ? (
+					<span className="text-zinc-500">No company details yet.</span>
+				) : (
+					details.map((d) => (
+						<span key={d.text} className="flex min-w-0 items-center gap-2">
+							<d.icon className="size-4 shrink-0 text-zinc-400" />
+							{d.href ? (
+								<a href={d.href} target={d.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate hover:text-brand-600">
+									{d.text}
+								</a>
+							) : (
+								<span className="truncate">{d.text}</span>
+							)}
+						</span>
+					))
+				)}
+			</Card>
 
-				<aside>
-					<Card className="p-5">
-						<h2 className="mb-3 text-sm font-semibold text-zinc-500">Details</h2>
-						{details.length === 0 ? (
-							<p className="text-sm text-zinc-500">No company details yet.</p>
-						) : (
-							<ul className="space-y-2.5 text-sm">
-								{details.map((d) => (
-									<li key={d.text} className="flex items-start gap-2.5">
-										<d.icon className="mt-0.5 size-4 shrink-0 text-zinc-400" />
-										{d.href ? (
-											<a href={d.href} target={d.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="break-all hover:text-brand-600">
-												{d.text}
-											</a>
-										) : (
-											<span>{d.text}</span>
-										)}
-									</li>
-								))}
-							</ul>
-						)}
-					</Card>
-				</aside>
+			<div className="grid gap-6 lg:grid-cols-2">
+				<ClientSection
+					clientId={client.id}
+					section="info"
+					title="Information"
+					icon={<Info className="size-5" />}
+					text={client.notes}
+					canEdit={isAdmin}
+					empty={isAdmin ? 'Nothing here yet. Add contract hours, key contacts, escalation paths and other important details.' : 'No information yet.'}
+					placeholder="Key contacts, support hours, systems, escalation paths…"
+					onSaved={(notes) => setClient({ ...client, notes })}
+				/>
+				<ClientSection
+					clientId={client.id}
+					section="new-hire"
+					title="New Hire Procedure"
+					icon={<UserPlus className="size-5" />}
+					text={client.new_hire}
+					canEdit={isAdmin}
+					empty={isAdmin ? 'Nothing here yet. Write the steps for setting up a new employee at this client.' : 'No new hire procedure yet.'}
+					placeholder="The steps for setting up a new employee at this client…"
+					onSaved={(new_hire) => setClient({ ...client, new_hire })}
+				/>
 			</div>
 
 			<section className="mt-8">

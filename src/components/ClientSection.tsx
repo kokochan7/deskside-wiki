@@ -1,7 +1,10 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { api } from '../api';
-import { Button, Card, ErrorNote, Markdown, Spinner, useFeedback } from './ui';
+import { Button, Card, ErrorNote, Markdown, Spinner, cx, useFeedback } from './ui';
+
+// Long sections scroll inside their card so the two sit side by side at a sensible height.
+const SCROLL = 'max-h-[28rem] overflow-y-auto';
 
 const RichEditor = lazy(() => import('./RichEditor').then((m) => ({ default: m.RichEditor })));
 
@@ -62,7 +65,7 @@ export function ClientSection({
 	};
 
 	return (
-		<Card className="p-5">
+		<Card className="flex min-w-0 flex-col p-5">
 			<div className="mb-3 flex items-center gap-2">
 				<span className="text-brand-500">{icon}</span>
 				<h2 className="flex-1 font-semibold">{title}</h2>
@@ -74,15 +77,11 @@ export function ClientSection({
 			</div>
 
 			{!editing ? (
-				text ? (
-					<Markdown source={text} className="prose-sm" />
-				) : (
-					<p className="text-sm text-zinc-500">{empty}</p>
-				)
+				<div className={SCROLL}>{text ? <Markdown source={text} className="prose-sm" /> : <p className="text-sm text-zinc-500">{empty}</p>}</div>
 			) : (
 				<>
 					<div
-						className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800"
+						className={cx(SCROLL, 'rounded-lg border border-zinc-200 dark:border-zinc-800')}
 						onKeyDown={(e) => {
 							if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
 								e.preventDefault();

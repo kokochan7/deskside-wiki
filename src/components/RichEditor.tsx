@@ -26,7 +26,7 @@ import {
 	type LucideIcon,
 } from 'lucide-react';
 import { altText, uploadImage } from '../images';
-import { cx, proseClass, useFeedback } from './ui';
+import { IMAGE_WIDTH, cx, proseClass, useFeedback } from './ui';
 
 // What-you-see-is-what-you-get editor. Content is still stored as Markdown, so existing KBs, search and
 // share links keep working; people just never see the Markdown.
@@ -58,7 +58,7 @@ export function RichEditor({
 		extensions: [
 			StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: { openOnClick: false, autolink: true } }),
 			Markdown,
-			Image,
+			ResizableImage,
 			TaskList,
 			TaskItem.configure({ nested: true }),
 			TableKit.configure({ table: { resizable: false } }),
@@ -129,6 +129,23 @@ export function RichEditor({
 
 // Empty paragraphs come out as &nbsp; lines; drop the ones left dangling at the end.
 const tidy = (md: string) => md.replace(/(\s|&nbsp;)+$/, '');
+
+// Images can be resized by dragging a corner. Markdown has no width syntax, so the width rides along in the
+// link as #w=480; the reader turns that back into a width (see renderMarkdown in ui.tsx).
+const ResizableImage = Image.extend({
+	parseMarkdown: (token, helpers) => {
+		const href: string = token.href ?? '';
+		const width = href.match(IMAGE_WIDTH)?.[1];
+		return helpers.createNode('image', { src: href.replace(IMAGE_WIDTH, ''), title: token.title, alt: token.text, width: width ? Number(width) : null });
+	},
+	renderMarkdown: (node) => {
+		const { src = '', alt = '', title = '', width } = node.attrs ?? {};
+		const href = width ? `${src}#w=${Math.round(width)}` : src;
+		return title ? `![${alt}](${href} "${title}")` : `![${alt}](${href})`;
+	},
+}).configure({
+	resize: { enabled: true, directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'], minWidth: 60, minHeight: 30, alwaysPreserveAspectRatio: true },
+});
 
 type Tool = { icon: LucideIcon; label: string; run: () => void; active?: boolean; disabled?: boolean } | 'sep';
 
