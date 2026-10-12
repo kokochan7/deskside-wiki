@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Building2, ExternalLink, FilePlus2, Layers, Search, Tag, Trash2 } from 'lucide-react';
-import { api, imageUrl, type ArticleSummary, type Client, type Overview } from '../api';
+import { useEffect, useState } from 'react';
+import { BookOpen, Building2, ExternalLink, FilePlus2, Search, Tag, Trash2 } from 'lucide-react';
+import { api, imageUrl, type ArticleSummary, type Client } from '../api';
 import { ClientLogo } from '../branding';
 import { timeAgo } from '../format';
 import { navigate, query } from '../router';
 import { canEdit, useUser } from '../session';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx, useFeedback } from '../components/ui';
 import { ClientPicker } from '../components/ClientPicker';
+import { ClientSidebar, rememberListQuery } from '../components/ClientSidebar';
 
 export function ArticleList() {
 	const user = useUser();
@@ -16,8 +17,7 @@ export function ArticleList() {
 	const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
 	const [categories, setCategories] = useState<string[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
-	const [counts, setCounts] = useState({ articles: 0, internal: 0 });
-	const [clientFilter, setClientFilter] = useState('');
+	const [sort, setSort] = useState(() => query().get('sort') ?? '');
 	const [selected, setSelected] = useState<Set<number>>(new Set());
 	const [reload, setReload] = useState(0);
 	const isAdmin = user.role === 'admin';
@@ -28,7 +28,6 @@ export function ArticleList() {
 	useEffect(() => {
 		api.get<string[]>('/categories').then(setCategories).catch(() => {});
 		api.get<Client[]>('/clients').then(setClients).catch(() => {});
-		api.get<Overview>('/overview').then((o) => setCounts(o.counts)).catch(() => {});
 	}, [reload]);
 
 	useEffect(() => {
@@ -36,12 +35,14 @@ export function ArticleList() {
 		if (q.trim()) params.set('q', q.trim());
 		if (category) params.set('category', category);
 		if (client) params.set('client', client);
+		if (sort) params.set('sort', sort);
 		history.replaceState(null, '', `#/articles${params.size ? '?' + params : ''}`);
+		rememberListQuery(params);
 		const t = setTimeout(() => {
 			api.get<ArticleSummary[]>(`/articles?${params}`).then(setArticles).catch(() => setArticles([]));
 		}, 150);
 		return () => clearTimeout(t);
-	}, [q, category, client, reload]);
+	}, [q, category, client, sort, reload]);
 	// Only keep selections that are still visible after filtering.
 	useEffect(() => setSelected((s) => new Set(articles?.filter((a) => s.has(a.id)).map((a) => a.id))), [articles]);
 
@@ -66,28 +67,6 @@ export function ArticleList() {
 			toast((e as Error).message, 'error');
 		}
 	};
-	const shownClients = useMemo(
-		() => clients.filter((c) => c.name.toLowerCase().includes(clientFilter.toLowerCase())),
-		[clients, clientFilter],
-	);
-
-	const sideItem = (key: string, label: string, count: number, icon: React.ReactNode) => (
-		<button
-			key={key}
-			onClick={() => setClient(key)}
-			className={cx(
-				'flex w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition lg:w-full',
-				client === key
-					? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-200'
-					: 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800/60',
-			)}
-		>
-			{icon}
-			<span className="min-w-0 flex-1 truncate">{label}</span>
-			<span className="text-xs tabular-nums text-zinc-400">{count}</span>
-		</button>
-	);
-
 	return (
 		<>
 			<PageHeader
@@ -102,20 +81,7 @@ export function ArticleList() {
 			/>
 			<div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
 				<aside className="lg:sticky lg:top-6 lg:self-start">
-					<div className="mb-2 flex items-center justify-between px-1">
-						<h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Clients</h2>
-					</div>
-					{clients.length > 8 && (
-						<Input value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} placeholder="Find a client…" className="mb-2 h-8! text-xs" />
-					)}
-					<nav className="flex max-h-56 flex-col gap-0.5 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
-						{sideItem('', 'All KBs', counts.articles, <Layers className="size-6 shrink-0 p-1 text-zinc-400" />)}
-						{sideItem('none', 'Internal', counts.internal, <Building2 className="size-6 shrink-0 p-1 text-zinc-400" />)}
-						{shownClients.length > 0 && <div className="my-1.5 border-t border-zinc-200 dark:border-zinc-800" />}
-						{shownClients.map((c) =>
-							sideItem(String(c.id), c.name, c.article_count ?? 0, <ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} size="sm" />),
-						)}
-					</nav>
+					<ClientSidebar active={client} onSelect={setClient} reload={reload} />
 				</aside>
 
 				<section className="min-w-0">
@@ -133,6 +99,12 @@ export function ArticleList() {
 							<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
 							<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search KBs…" className="pl-9" autoFocus />
 						</div>
+						<Select value={!q.trim() && sort === 'updated' ? '' : sort} onChange={(e) => setSort(e.target.value)} className="sm:w-44" aria-label="Sort by">
+							{q.trim() && <option value="">Best match</option>}
+							<option value={q.trim() ? 'updated' : ''}>Last updated</option>
+							<option value="oldest">Oldest update first</option>
+							<option value="title">Title (A–Z)</option>
+						</Select>
 						<Select value={category} onChange={(e) => setCategory(e.target.value)} className="sm:w-48" aria-label="Category">
 							<option value="">All categories</option>
 							{categories.map((c) => (

@@ -317,6 +317,7 @@ app.get('/articles', async (c) => {
 	const where: string[] = [];
 	const args: unknown[] = [];
 	let from = 'articles a';
+	const sort = c.req.query('sort');
 	let order = 'a.updated_at DESC';
 	let snippet = `substr(a.body, 1, 200)`;
 	if (q && ftsQuery(q)) {
@@ -326,6 +327,10 @@ app.get('/articles', async (c) => {
 		order = 'bm25(articles_fts, 10.0, 1.0, 5.0)';
 		snippet = `snippet(articles_fts, 1, '<mark>', '</mark>', '…', 24)`;
 	}
+	// Search results come best match first unless a sort is picked.
+	if (sort === 'updated') order = 'a.updated_at DESC';
+	else if (sort === 'oldest') order = 'a.updated_at ASC';
+	else if (sort === 'title') order = 'a.title COLLATE NOCASE';
 	if (category) {
 		where.push('a.category = ?');
 		args.push(category);
