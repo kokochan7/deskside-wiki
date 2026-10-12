@@ -19,16 +19,13 @@ export type Article = ArticleSummary & {
 export type Client = {
 	id: number;
 	name: string;
-	website: string;
-	phone: string;
-	email: string;
-	address: string;
 	notes: string;
 	new_hire: string;
 	logo_image_id: string | null;
 	article_count?: number;
 };
-export type ClientDetail = Client & { articles: { id: number; title: string; category: string; updated_at: string }[] };
+export type Service = { name: string; on: boolean };
+export type ClientDetail = Client & { services: Service[]; articles: { id: number; title: string; category: string; updated_at: string }[] };
 export type ClientRef = { id: number; name: string };
 export type Overview = {
 	counts: { articles: number; clients: number; users: number; internal: number; updated_30d: number };

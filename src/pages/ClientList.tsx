@@ -16,7 +16,7 @@ export function ClientList() {
 		api.get<Client[]>('/clients').then(setClients).catch(() => setClients([]));
 	}, []);
 
-	const shown = clients?.filter((c) => [c.name, c.email, c.phone, c.website].join(' ').toLowerCase().includes(q.toLowerCase()));
+	const shown = clients?.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
 
 	return (
 		<>
@@ -50,8 +50,6 @@ export function ClientList() {
 						<a key={c.id} href={`#/clients/${c.id}`} className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
 							<ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} size="sm" />
 							<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{c.name}</span>
-							<span className="hidden w-48 truncate text-xs text-zinc-500 md:inline">{c.website}</span>
-							<span className="hidden w-32 truncate text-xs text-zinc-500 sm:inline">{c.phone}</span>
 							<span className="w-20 shrink-0 text-right text-xs tabular-nums text-zinc-500">
 								{c.article_count} {c.article_count === 1 ? 'KB' : 'KBs'}
 							</span>
@@ -64,7 +62,7 @@ export function ClientList() {
 	);
 }
 
-const blank = { name: '', website: '', phone: '', email: '', address: '', logo_image_id: null as string | null };
+const blank = { name: '', logo_image_id: null as string | null };
 
 export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; onClose: () => void; onSaved: (id: number) => void; client?: Client }) {
 	const { toast } = useFeedback();
@@ -73,11 +71,7 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		if (open) {
-			setF(
-				client
-					? { name: client.name, website: client.website, phone: client.phone, email: client.email, address: client.address, logo_image_id: client.logo_image_id }
-					: blank,
-			);
+			setF(client ? { name: client.name, logo_image_id: client.logo_image_id } : blank);
 			setError(null);
 			setBusy(false);
 		}
@@ -107,20 +101,6 @@ export function ClientForm({ open, onClose, onSaved, client }: { open: boolean; 
 				</div>
 				<Field label="Company name">
 					<Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-				</Field>
-				<div className="grid gap-4 sm:grid-cols-3">
-					<Field label="Website">
-						<Input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} placeholder="example.com" />
-					</Field>
-					<Field label="Main phone">
-						<Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
-					</Field>
-					<Field label="Main email">
-						<Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
-					</Field>
-				</div>
-				<Field label="Address">
-					<Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
 				</Field>
 				<ErrorNote error={error} />
 				<div className="flex justify-end gap-2">

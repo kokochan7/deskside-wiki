@@ -123,6 +123,10 @@ const MIGRATIONS: string[][] = [
 		// Client pages get a New Hire Procedure section next to Information (the existing notes column).
 		`ALTER TABLE clients ADD COLUMN new_hire TEXT NOT NULL DEFAULT ''`,
 	],
+	[
+		// The services/software each client uses: a JSON list of { name, on }.
+		`ALTER TABLE clients ADD COLUMN services TEXT NOT NULL DEFAULT '[]'`,
+	],
 ];
 
 let ready: Promise<void> | null = null;

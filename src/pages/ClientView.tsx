@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, Globe, Info, Mail, MapPin, Pencil, Phone, Trash2, UserPlus } from 'lucide-react';
+import { ArrowLeft, BookOpen, Info, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { api, imageUrl, type ClientDetail } from '../api';
 import { ClientLogo } from '../branding';
 import { plural, timeAgo } from '../format';
 import { navigate } from '../router';
 import { ClientSection } from '../components/ClientSection';
+import { ClientServices } from '../components/ClientServices';
 import { canEdit, useUser } from '../session';
 import { Badge, Button, Card, Empty, Spinner, useFeedback } from '../components/ui';
 import { ClientForm } from './ClientList';
@@ -44,13 +45,6 @@ export function ClientView({ id }: { id: number }) {
 			toast((e as Error).message, 'error');
 		}
 	};
-	const website = client.website && (client.website.startsWith('http') ? client.website : `https://${client.website}`);
-	const details = [
-		client.website && { icon: Globe, text: client.website, href: website },
-		client.phone && { icon: Phone, text: client.phone, href: `tel:${client.phone}` },
-		client.email && { icon: Mail, text: client.email, href: `mailto:${client.email}` },
-		client.address && { icon: MapPin, text: client.address },
-	].filter(Boolean) as { icon: typeof Globe; text: string; href?: string }[];
 
 	return (
 		<>
@@ -81,24 +75,7 @@ export function ClientView({ id }: { id: number }) {
 				)}
 			</div>
 
-			<Card className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 text-sm">
-				{details.length === 0 ? (
-					<span className="text-zinc-500">No company details yet.</span>
-				) : (
-					details.map((d) => (
-						<span key={d.text} className="flex min-w-0 items-center gap-2">
-							<d.icon className="size-4 shrink-0 text-zinc-400" />
-							{d.href ? (
-								<a href={d.href} target={d.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate hover:text-brand-600">
-									{d.text}
-								</a>
-							) : (
-								<span className="truncate">{d.text}</span>
-							)}
-						</span>
-					))
-				)}
-			</Card>
+			<ClientServices clientId={client.id} services={client.services} canEdit={editor} />
 
 			<div className="grid gap-6 lg:grid-cols-2">
 				<ClientSection

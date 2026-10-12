@@ -556,17 +556,14 @@ app.get('/clients/:id', async (c) => {
 		).bind(id),
 	]);
 	if (!client.results[0]) fail(404, 'Client not found.');
-	return c.json({ ...(client.results[0] as object), articles: articles.results });
+	const row = client.results[0] as Record<string, unknown>;
+	return c.json({ ...row, services: parseServices(row.services), articles: articles.results });
 });
 
 async function clientFields(c: Context<Env>) {
 	const b = await body(c);
 	return {
 		name: str(b.name, 'Client name', { required: true }),
-		website: str(b.website, 'Website'),
-		phone: str(b.phone, 'Phone', { max: 60 }),
-		email: str(b.email, 'Email'),
-		address: str(b.address, 'Address', { max: 500 }),
 		logo_image_id: await imageIdOrNull(c.env.DB, b.logo_image_id),
 	};
 }
@@ -574,9 +571,8 @@ async function clientFields(c: Context<Env>) {
 app.post('/clients', canEdit, async (c) => {
 	const f = await clientFields(c);
 	const res = await c.env.DB.prepare(
-		`INSERT INTO clients (name, website, phone, email, address, logo_image_id) VALUES (?, ?, ?, ?, ?, ?)`,
-	)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.logo_image_id)
+		`INSERT INTO clients (name, logo_image_id) VALUES (?, ?)`)
+		.bind(f.name, f.logo_image_id)
 		.run();
 	return c.json({ id: res.meta.last_row_id }, 201);
 });
@@ -585,12 +581,40 @@ app.put('/clients/:id', canEdit, async (c) => {
 	const id = idParam(c);
 	const f = await clientFields(c);
 	const res = await c.env.DB.prepare(
-		`UPDATE clients SET name = ?, website = ?, phone = ?, email = ?, address = ?, logo_image_id = ?, updated_at = datetime('now') WHERE id = ?`,
-	)
-		.bind(f.name, f.website, f.phone, f.email, f.address, f.logo_image_id, id)
+		`UPDATE clients SET name = ?, logo_image_id = ?, updated_at = datetime('now') WHERE id = ?`)
+		.bind(f.name, f.logo_image_id, id)
 		.run();
 	if (!res.meta.changes) fail(404, 'Client not found.');
 	return c.json({ id });
+});
+
+// The services/software a client uses, shown as a row of checkable chips at the top of its page.
+type Service = { name: string; on: boolean };
+
+function parseServices(raw: unknown): Service[] {
+	try {
+		const list = JSON.parse(String(raw ?? '[]'));
+		return Array.isArray(list) ? list : [];
+	} catch {
+		return [];
+	}
+}
+
+app.put('/clients/:id/services', canEdit, async (c) => {
+	const id = idParam(c);
+	const b = await body(c);
+	if (!Array.isArray(b.services)) fail(400, 'Services must be a list.');
+	const list = b.services as unknown[];
+	if (list.length > 50) fail(400, 'A client can have at most 50 services.');
+	const services: Service[] = list.map((item) => {
+		const s = (item ?? {}) as Record<string, unknown>;
+		return { name: str(s.name, 'Service name', { required: true, max: 60 }), on: s.on === true };
+	});
+	const res = await c.env.DB.prepare(`UPDATE clients SET services = ?, updated_at = datetime('now') WHERE id = ?`)
+		.bind(JSON.stringify(services), id)
+		.run();
+	if (!res.meta.changes) fail(404, 'Client not found.');
+	return c.json({ services });
 });
 
 // The Information and New Hire Procedure sections of a client page. Everyone can read them; only admins edit.
