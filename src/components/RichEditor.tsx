@@ -22,6 +22,7 @@ import {
 	Bold,
 	Check,
 	Code,
+	FoldVertical,
 	ImagePlus,
 	IndentDecrease,
 	IndentIncrease,
@@ -287,6 +288,7 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
 		{ icon: AlignRight, label: 'Align right', run: () => align(editor, 'right'), active: s.align === 'right', disabled: !s.canAlign },
 		{ icon: IndentDecrease, label: 'Decrease indent', run: () => indent(editor, -1), disabled: !s.canOutdent },
 		{ icon: IndentIncrease, label: 'Increase indent', run: () => indent(editor, 1), disabled: !s.canIndent },
+		{ icon: FoldVertical, label: 'Remove spacing between rows (selected rows, or everything)', run: () => removeSpacing(editor) },
 		{ icon: Quote, label: 'Quote', run: () => chain().toggleBlockquote().run(), active: s.quote },
 		{ icon: Table, label: 'Insert table', run: () => chain().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(), disabled: s.table },
 		{ icon: ImagePlus, label: 'Insert image', run: onImage },
@@ -380,6 +382,58 @@ function updateRows(e: Editor, attrs: (node: ProseMirrorNode) => Record<string, 
 			return rows.length > 0;
 		})
 		.run();
+}
+// Remove spacing: in the selection (or the whole KB when nothing is selected), delete blank lines and pull
+// consecutive paragraphs together as tight rows, so they read like lines typed with Shift+Enter.
+const isBlank = (node: ProseMirrorNode) => {
+	let blank = true;
+	node.forEach((child) => {
+		if (child.type.name !== 'hardBreak' && !(child.isText && !child.text?.trim())) blank = false;
+	});
+	return blank;
+};
+function removeSpacing(e: Editor) {
+	e.chain()
+		.focus()
+		.command(({ tr }) => {
+			const whole = tr.selection.empty;
+			const from = whole ? 0 : tr.selection.from;
+			const to = whole ? tr.doc.content.size : tr.selection.to;
+			const paras = rowParagraphsBetween(tr.doc, from, to);
+			// Last first, so earlier positions stay valid.
+			for (const { pos, node } of [...paras].reverse()) {
+				if (isBlank(node)) {
+					if (tr.doc.childCount > 1) tr.delete(pos, pos + node.nodeSize);
+					continue;
+				}
+				// Blank rows inside a paragraph: breaks at the start or end, or two in a row.
+				const breaks: number[] = [];
+				let prev: ProseMirrorNode | null = null;
+				node.forEach((child, offset, i) => {
+					if (child.type.name === 'hardBreak' && (i === 0 || i === node.childCount - 1 || prev?.type.name === 'hardBreak')) breaks.push(pos + 1 + offset);
+					prev = child;
+				});
+				for (const b of breaks.reverse()) tr.delete(b, b + 1);
+			}
+			const start = tr.mapping.map(from, -1);
+			const end = tr.mapping.map(to, 1);
+			let before: ProseMirrorNode | null = null;
+			tr.doc.forEach((node, pos) => {
+				const inside = pos + node.nodeSize > start && pos < end;
+				if (inside && node.type.name === 'paragraph' && before?.type.name === 'paragraph' && !node.attrs.row)
+					tr.setNodeMarkup(pos, undefined, { ...node.attrs, row: true });
+				before = inside ? node : null;
+			});
+			return true;
+		})
+		.run();
+}
+function rowParagraphsBetween(doc: ProseMirrorNode, from: number, to: number) {
+	const found: { pos: number; node: ProseMirrorNode }[] = [];
+	doc.forEach((node, pos) => {
+		if (node.type.name === 'paragraph' && pos + node.nodeSize > from && pos <= to) found.push({ pos, node });
+	});
+	return found;
 }
 function canIndent(e: Editor, dir: 1 | -1) {
 	const item = listItemType(e);
