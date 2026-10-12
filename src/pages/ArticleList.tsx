@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Building2, ExternalLink, FilePlus2, Search, Tag, Trash2 } from 'lucide-react';
+import { BookOpen, Building2, ExternalLink, FilePlus2, ListChecks, Search, Tag, Trash2, X } from 'lucide-react';
 import { api, imageUrl, type ArticleSummary, type Client } from '../api';
 import { ClientLogo } from '../branding';
 import { timeAgo } from '../format';
@@ -21,7 +21,8 @@ export function ArticleList() {
 	const [selected, setSelected] = useState<Set<number>>(new Set());
 	const [reload, setReload] = useState(0);
 	const isAdmin = user.role === 'admin';
-	const selectable = canEdit(user);
+	// Checkboxes only show after clicking Select multiple.
+	const [selectable, setSelectable] = useState(false);
 	const [bulkEditing, setBulkEditing] = useState<'category' | 'clients' | null>(null);
 	const { confirm, toast } = useFeedback();
 
@@ -113,6 +114,19 @@ export function ArticleList() {
 							<option key={c}>{c}</option>
 						))}
 					</Select>
+					{canEdit(user) && (
+						<Button
+							onClick={() => {
+								setSelectable((v) => !v);
+								setSelected(new Set());
+							}}
+							aria-pressed={selectable}
+							className="shrink-0"
+						>
+							{selectable ? <X className="size-4" /> : <ListChecks className="size-4" />}
+							{selectable ? 'Done' : 'Select multiple'}
+						</Button>
+					)}
 				</div>
 
 				{!articles ? (
