@@ -11,6 +11,7 @@ import { Login, Setup } from './pages/Auth';
 import { Dashboard } from './pages/Dashboard';
 import { ArticleList } from './pages/ArticleList';
 import { ArticleView } from './pages/ArticleView';
+import { KnowledgeBaseLayout } from './components/ClientSidebar';
 import { ArticleEdit } from './pages/ArticleEdit';
 import { ClientList } from './pages/ClientList';
 import { ClientView } from './pages/ClientView';
@@ -228,10 +229,10 @@ function Page({ route }: { route: string[] }) {
 	const [a, b, c] = route;
 	if (!a) return <Dashboard />;
 	if (a === 'articles') {
-		if (!b) return <ArticleList />;
 		if (b === 'new') return canEdit(user) ? <ArticleEdit /> : <NotFound />;
 		if (c === 'edit') return canEdit(user) ? <ArticleEdit id={Number(b)} key={b} /> : <NotFound />;
-		return <ArticleView id={Number(b)} key={b} />;
+		// The list and a KB share one layout, so the Clients list beside them isn't rebuilt when moving between them.
+		return <KnowledgeBaseLayout onKbPage={!!b}>{b ? <ArticleView id={Number(b)} key={b} /> : <ArticleList />}</KnowledgeBaseLayout>;
 	}
 	if (a === 'clients') return b ? <ClientView id={Number(b)} key={b} /> : <ClientList />;
 	if (a === 'team' && user.role === 'admin') return <Team />;
