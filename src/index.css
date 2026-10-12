@@ -27,6 +27,18 @@ mark {
 	@apply rounded bg-brand-200/70 px-0.5 text-inherit dark:bg-brand-500/40;
 }
 
+/* Published checklists: just the box, no bullet, with room before the text. */
+.prose ul:has(> li > input[type='checkbox'], > li > p:first-child > input[type='checkbox']) {
+	@apply list-none pl-0;
+}
+.prose li:has(> input[type='checkbox'], > p:first-child > input[type='checkbox']) {
+	@apply pl-0;
+}
+.prose li > input[type='checkbox'],
+.prose li > p:first-child > input[type='checkbox'] {
+	@apply mr-3 size-4 align-[-0.15em] accent-brand-600;
+}
+
 /* Rich text editor (Tiptap) */
 .tiptap p.is-editor-empty:first-child::before {
 	content: attr(data-placeholder);
@@ -39,7 +51,7 @@ mark {
 	@apply list-none pl-0;
 }
 .tiptap ul[data-type='taskList'] li {
-	@apply my-1 flex items-start gap-2 pl-0;
+	@apply my-1 flex items-start gap-3 pl-0;
 }
 .tiptap ul[data-type='taskList'] li > label {
 	@apply mt-[0.3em] flex-none select-none;

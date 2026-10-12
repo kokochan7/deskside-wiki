@@ -24,7 +24,7 @@ export type Client = {
 	logo_image_id: string | null;
 	article_count?: number;
 };
-export type Service = { name: string; on: boolean };
+export type Service = { name: string; on: boolean; category?: string };
 export type ClientDetail = Client & { services: Service[]; articles: { id: number; title: string; category: string; updated_at: string }[] };
 export type ClientRef = { id: number; name: string };
 export type Overview = {

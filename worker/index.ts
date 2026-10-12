@@ -588,8 +588,8 @@ app.put('/clients/:id', canEdit, async (c) => {
 	return c.json({ id });
 });
 
-// The services/software a client uses, shown as a row of checkable chips at the top of its page.
-type Service = { name: string; on: boolean };
+// The services/software a client uses, grouped by category and shown as checkable chips at the top of its page.
+type Service = { name: string; on: boolean; category: string };
 
 function parseServices(raw: unknown): Service[] {
 	try {
@@ -608,7 +608,11 @@ app.put('/clients/:id/services', canEdit, async (c) => {
 	if (list.length > 50) fail(400, 'A client can have at most 50 services.');
 	const services: Service[] = list.map((item) => {
 		const s = (item ?? {}) as Record<string, unknown>;
-		return { name: str(s.name, 'Service name', { required: true, max: 60 }), on: s.on === true };
+		return {
+			name: str(s.name, 'Service name', { required: true, max: 60 }),
+			on: s.on === true,
+			category: str(s.category, 'Category', { max: 40 }),
+		};
 	});
 	const res = await c.env.DB.prepare(`UPDATE clients SET services = ?, updated_at = datetime('now') WHERE id = ?`)
 		.bind(JSON.stringify(services), id)
