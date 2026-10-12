@@ -11,12 +11,12 @@ Runs entirely on Cloudflare: a Worker serves the API and the React app, and a D1
 - **Share links:** technicians can create a link to a single KB (with its images) that works without an account, and turn it off again. **Copy** starts a new KB with all the fields of an existing one.
 - **Public viewing:** anyone can browse read-only without signing in; signing in unlocks editing. Admins can turn this off in Settings.
 - **Search:** full-text search across titles and bodies, plus a ⌘K / Ctrl+K command palette.
-- **Clients:** an alphabetical list. Each client page has a logo, a slim bar of company details, and side-by-side **Information** and **New Hire Procedure** sections (rich text with images; everyone can read them, only admins edit them), and the client's KBs at the bottom.
+- **Clients:** an alphabetical list. Each client page has a logo, a slim **Services** row at the top (the services/software the client uses, each with a checkmark; admins and technicians add, tick and remove them in place), and side-by-side **Information** and **New Hire Procedure** sections (rich text with images; everyone can read them, only admins edit them), and the client's KBs at the bottom.
 - **Dashboard:** totals and the most recently updated KBs.
 - **Settings (admins):** site name, logo (also the browser tab icon) and accent colour, then Categories and Access. The name and logo also show on the sign-in page.
 - **User Accounts:** people sign in with a username and password. Admins add technicians, set roles, reset passwords and disable accounts.
   - **Admin:** everything, including deleting KBs and clients, editing client Information and New Hire Procedure, and managing user accounts.
-  - **Technician:** create and edit KBs and client details (no deleting).
+  - **Technician:** create and edit KBs, client names and logos, and client services (no deleting).
   - **Viewer:** read-only.
 - Light and dark mode, mobile layout.
 
