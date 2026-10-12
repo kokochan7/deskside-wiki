@@ -47,11 +47,12 @@ export function BrandMark({ className }: { className?: string }) {
 
 const sizes = { sm: 'size-6 text-[10px] rounded-md', md: 'size-10 text-sm rounded-lg', lg: 'size-14 text-lg rounded-xl' };
 
+// A logo sits on a transparent background, scaled up or down to fit the box whole, whatever its shape.
 export function ClientLogo({ name, logoUrl, size = 'md' }: { name: string; logoUrl: string | null; size?: keyof typeof sizes }) {
 	if (logoUrl)
 		return (
-			<span className={cx('grid shrink-0 place-items-center overflow-hidden bg-white ring-1 ring-zinc-200 dark:ring-zinc-700', sizes[size])}>
-				<img src={logoUrl} alt="" className="size-full object-contain p-0.5" />
+			<span className={cx('relative shrink-0', sizes[size])}>
+				<img src={logoUrl} alt="" className="absolute inset-0 size-full object-contain" />
 			</span>
 		);
 	return (
@@ -75,7 +76,8 @@ export function LogoPicker({ url, onChange, label = 'Upload logo' }: { url: stri
 		if (!file) return;
 		setBusy(true);
 		try {
-			const res = await uploadImage(file, 512);
+			// Logos are trimmed of empty margins so they fill their box.
+			const res = await uploadImage(file, 512, true);
 			onChange(res.id, res.url);
 		} catch (e) {
 			toast((e as Error).message, 'error');
@@ -84,8 +86,8 @@ export function LogoPicker({ url, onChange, label = 'Upload logo' }: { url: stri
 	};
 	return (
 		<div className="flex items-center gap-4">
-			<span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-				{busy ? <Loader2 className="size-5 animate-spin text-zinc-400" /> : url ? <img src={url} alt="" className="size-full object-contain p-1" /> : <ImagePlus className="size-5 text-zinc-400" />}
+			<span className="relative grid size-16 shrink-0 place-items-center rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
+				{busy ? <Loader2 className="size-5 animate-spin text-zinc-400" /> : url ? <img src={url} alt="" className="absolute inset-1 size-[calc(100%-0.5rem)] object-contain" /> : <ImagePlus className="size-5 text-zinc-400" />}
 			</span>
 			<div className="flex flex-wrap gap-2">
 				<Button type="button" size="sm" onClick={() => input.current?.click()} disabled={busy}>
@@ -96,7 +98,7 @@ export function LogoPicker({ url, onChange, label = 'Upload logo' }: { url: stri
 						<Trash2 className="size-4" /> Remove
 					</Button>
 				)}
-				<p className="w-full text-xs text-zinc-500">PNG, JPG, WebP or SVG. Square images look best.</p>
+				<p className="w-full text-xs text-zinc-500">PNG, JPG, WebP or SVG. Empty margins are trimmed automatically.</p>
 			</div>
 			<input
 				ref={input}
