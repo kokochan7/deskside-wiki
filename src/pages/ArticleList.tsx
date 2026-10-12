@@ -7,7 +7,7 @@ import { navigate, query } from '../router';
 import { canEdit, useUser } from '../session';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx, useFeedback } from '../components/ui';
 import { ClientPicker } from '../components/ClientPicker';
-import { ClientSidebar, rememberListQuery } from '../components/ClientSidebar';
+import { refreshClientSidebar, rememberListQuery } from '../components/ClientSidebar';
 
 export function ArticleList() {
 	const user = useUser();
@@ -28,6 +28,7 @@ export function ArticleList() {
 	useEffect(() => {
 		api.get<string[]>('/categories').then(setCategories).catch(() => {});
 		api.get<Client[]>('/clients').then(setClients).catch(() => {});
+		if (reload) refreshClientSidebar();
 	}, [reload]);
 
 	useEffect(() => {
@@ -43,6 +44,12 @@ export function ArticleList() {
 		}, 150);
 		return () => clearTimeout(t);
 	}, [q, category, client, sort, reload]);
+	// Picking a client in the sidebar changes the address; follow it.
+	useEffect(() => {
+		const on = () => setClient(query().get('client') ?? '');
+		window.addEventListener('hashchange', on);
+		return () => window.removeEventListener('hashchange', on);
+	}, []);
 	// Only keep selections that are still visible after filtering.
 	useEffect(() => setSelected((s) => new Set(articles?.filter((a) => s.has(a.id)).map((a) => a.id))), [articles]);
 
@@ -79,107 +86,101 @@ export function ArticleList() {
 					)
 				}
 			/>
-			<div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-				<aside className="lg:sticky lg:top-6 lg:self-start">
-					<ClientSidebar active={client} onSelect={setClient} reload={reload} />
-				</aside>
-
-				<section className="min-w-0">
-					{current && (
-						<div className="mb-4 flex items-center gap-3">
-							<ClientLogo name={current.name} logoUrl={imageUrl(current.logo_image_id)} size="md" />
-							<h2 className="text-lg font-semibold">{current.name}</h2>
-							<a href={`#/clients/${current.id}`} className="ml-1 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-brand-600">
-								Client details <ExternalLink className="size-3" />
-							</a>
-						</div>
-					)}
-					<div className="mb-3 flex flex-col gap-2 sm:flex-row">
-						<div className="relative flex-1">
-							<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
-							<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search KBs…" className="pl-9" autoFocus />
-						</div>
-						<Select value={!q.trim() && sort === 'updated' ? '' : sort} onChange={(e) => setSort(e.target.value)} className="sm:w-44" aria-label="Sort by">
-							{q.trim() && <option value="">Best match</option>}
-							<option value={q.trim() ? 'updated' : ''}>Last updated</option>
-							<option value="oldest">Oldest update first</option>
-							<option value="title">Title (A–Z)</option>
-						</Select>
-						<Select value={category} onChange={(e) => setCategory(e.target.value)} className="sm:w-48" aria-label="Category">
-							<option value="">All categories</option>
-							{categories.map((c) => (
-								<option key={c}>{c}</option>
-							))}
-						</Select>
+			<section className="min-w-0">
+				{current && (
+					<div className="mb-4 flex items-center gap-3">
+						<ClientLogo name={current.name} logoUrl={imageUrl(current.logo_image_id)} size="md" />
+						<h2 className="text-lg font-semibold">{current.name}</h2>
+						<a href={`#/clients/${current.id}`} className="ml-1 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-brand-600">
+							Client details <ExternalLink className="size-3" />
+						</a>
 					</div>
+				)}
+				<div className="mb-3 flex flex-col gap-2 sm:flex-row">
+					<div className="relative flex-1">
+						<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+						<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search KBs…" className="pl-9" autoFocus />
+					</div>
+					<Select value={!q.trim() && sort === 'updated' ? '' : sort} onChange={(e) => setSort(e.target.value)} className="sm:w-44" aria-label="Sort by">
+						{q.trim() && <option value="">Best match</option>}
+						<option value={q.trim() ? 'updated' : ''}>Last updated</option>
+						<option value="oldest">Oldest update first</option>
+						<option value="title">Title (A–Z)</option>
+					</Select>
+					<Select value={category} onChange={(e) => setCategory(e.target.value)} className="sm:w-48" aria-label="Category">
+						<option value="">All categories</option>
+						{categories.map((c) => (
+							<option key={c}>{c}</option>
+						))}
+					</Select>
+				</div>
 
-					{!articles ? (
-						<Spinner />
-					) : articles.length === 0 ? (
-						<Empty icon={<BookOpen className="size-5" />} title={q || category ? 'No matching KBs' : 'No KBs here yet'}>
-							{q || category ? 'Try a different search or clear the filters.' : 'Create a KB to get started.'}
-						</Empty>
-					) : (
-						<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
-							{selectable && (
-								<div className="flex min-h-11 items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
+				{!articles ? (
+					<Spinner />
+				) : articles.length === 0 ? (
+					<Empty icon={<BookOpen className="size-5" />} title={q || category ? 'No matching KBs' : 'No KBs here yet'}>
+						{q || category ? 'Try a different search or clear the filters.' : 'Create a KB to get started.'}
+					</Empty>
+				) : (
+					<Card className="divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
+						{selectable && (
+							<div className="flex min-h-11 items-center gap-3 bg-zinc-50/80 px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900/60">
+								<input
+									type="checkbox"
+									checked={allSelected}
+									onChange={() => setSelected(allSelected ? new Set() : new Set(articles.map((a) => a.id)))}
+									className="size-4 accent-brand-600"
+									aria-label="Select all"
+								/>
+								{selected.size > 0 && (
+									<>
+										<span className="font-medium text-zinc-700 dark:text-zinc-300">{selected.size} selected</span>
+										<Button size="sm" onClick={() => setBulkEditing('category')} className="ml-auto h-7!">
+											<Tag className="size-3.5" /> Change category
+										</Button>
+										<Button size="sm" onClick={() => setBulkEditing('clients')} className="h-7!">
+											<Building2 className="size-3.5" /> Change clients
+										</Button>
+										{isAdmin && (
+											<Button size="sm" variant="danger" onClick={deleteSelected} className="h-7!">
+												<Trash2 className="size-3.5" /> Delete
+											</Button>
+										)}
+									</>
+								)}
+							</div>
+						)}
+						{articles.map((a) => (
+							<div key={a.id} className={cx('group flex items-center text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40', selected.has(a.id) && 'bg-brand-50/60 dark:bg-brand-500/10')}>
+								{selectable && (
 									<input
 										type="checkbox"
-										checked={allSelected}
-										onChange={() => setSelected(allSelected ? new Set() : new Set(articles.map((a) => a.id)))}
-										className="size-4 accent-brand-600"
-										aria-label="Select all"
+										checked={selected.has(a.id)}
+										onChange={() => toggle(a.id)}
+										className="ml-4 size-4 shrink-0 accent-brand-600"
+										aria-label={`Select ${a.title}`}
 									/>
-									{selected.size > 0 && (
-										<>
-											<span className="font-medium text-zinc-700 dark:text-zinc-300">{selected.size} selected</span>
-											<Button size="sm" onClick={() => setBulkEditing('category')} className="ml-auto h-7!">
-												<Tag className="size-3.5" /> Change category
-											</Button>
-											<Button size="sm" onClick={() => setBulkEditing('clients')} className="h-7!">
-												<Building2 className="size-3.5" /> Change clients
-											</Button>
-											{isAdmin && (
-												<Button size="sm" variant="danger" onClick={deleteSelected} className="h-7!">
-													<Trash2 className="size-3.5" /> Delete
-												</Button>
-											)}
-										</>
+								)}
+								<a href={`#/articles/${a.id}`} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5">
+									<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{a.title}</span>
+									{!client && a.clients.length > 0 && (
+										<span className="hidden max-w-56 truncate text-xs text-zinc-500 sm:inline" title={a.clients.map((c) => c.name).join(', ')}>
+											{a.clients.map((c) => c.name).join(', ')}
+										</span>
 									)}
-								</div>
-							)}
-							{articles.map((a) => (
-								<div key={a.id} className={cx('group flex items-center text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40', selected.has(a.id) && 'bg-brand-50/60 dark:bg-brand-500/10')}>
-									{selectable && (
-										<input
-											type="checkbox"
-											checked={selected.has(a.id)}
-											onChange={() => toggle(a.id)}
-											className="ml-4 size-4 shrink-0 accent-brand-600"
-											aria-label={`Select ${a.title}`}
-										/>
-									)}
-									<a href={`#/articles/${a.id}`} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5">
-										<span className="min-w-0 flex-1 truncate font-medium group-hover:text-brand-700 dark:group-hover:text-brand-300">{a.title}</span>
-										{!client && a.clients.length > 0 && (
-											<span className="hidden max-w-56 truncate text-xs text-zinc-500 sm:inline" title={a.clients.map((c) => c.name).join(', ')}>
-												{a.clients.map((c) => c.name).join(', ')}
-											</span>
-										)}
-										<Badge>{a.category}</Badge>
-										<span className="hidden w-24 shrink-0 text-right text-xs text-zinc-400 md:inline">{timeAgo(a.updated_at)}</span>
-									</a>
-								</div>
-							))}
-						</Card>
-					)}
-					{articles && articles.length > 0 && (
-						<p className="mt-2 px-1 text-xs text-zinc-400">
-							{kbs(articles.length)}
-						</p>
-					)}
-				</section>
-			</div>
+									<Badge>{a.category}</Badge>
+									<span className="hidden w-24 shrink-0 text-right text-xs text-zinc-400 md:inline">{timeAgo(a.updated_at)}</span>
+								</a>
+							</div>
+						))}
+					</Card>
+				)}
+				{articles && articles.length > 0 && (
+					<p className="mt-2 px-1 text-xs text-zinc-400">
+						{kbs(articles.length)}
+					</p>
+				)}
+			</section>
 			<BulkCategory
 				open={bulkEditing === 'category'}
 				ids={[...selected]}

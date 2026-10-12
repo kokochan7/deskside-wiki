@@ -73,8 +73,16 @@ export function ClientPicker({ clients, value, onChange, placeholder = 'Select c
 						{shown.map((c) => {
 							const on = value.includes(c.id);
 							return (
-								<label key={c.id} role="option" aria-selected={on} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
-									<input type="checkbox" checked={on} onChange={() => toggle(c.id)} className="sr-only" />
+								// A button, not a label around a hidden checkbox: focusing that checkbox scrolled the dropdown's
+								// contents out of sight when picking clients near the bottom of a long list.
+								<button
+									key={c.id}
+									type="button"
+									role="option"
+									aria-selected={on}
+									onClick={() => toggle(c.id)}
+									className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+								>
 									<span
 										className={cx(
 											'grid size-4 shrink-0 place-items-center rounded border',
@@ -85,7 +93,7 @@ export function ClientPicker({ clients, value, onChange, placeholder = 'Select c
 									</span>
 									<ClientLogo name={c.name} logoUrl={imageUrl(c.logo_image_id)} size="sm" />
 									<span className="truncate">{c.name}</span>
-								</label>
+								</button>
 							);
 						})}
 					</div>
